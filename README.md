@@ -8,7 +8,7 @@ Semiconductor Strategy Workflow
 ## Overview
 - Objective : 반도체 기술(HBM4, PIM, CXL 등)에 대해 시장성, 기술 성숙도, 경쟁 위협, 실행 전략을 통합 분석하는 자동화 워크플로우를 구축
 - Method : LangGraph 기반 멀티 에이전트 구조로 병렬 조사, supervisor 기반 라우팅, RAG 검색, LLM 기반 판단, 규칙 기반 fallback을 결합
-- Tools : LangGraph, OpenAI API, PDF reference corpus
+- Tools : Internal PDF RAG(BM25 + optional dense retrieval), WebSearchClient(SerpAPI / OpenAlex)
 
 ## Features
 - PDF 자료 기반 정보 추출
@@ -41,6 +41,17 @@ Semiconductor Strategy Workflow
 - `StrategyPlannerAgent`: 기술별 우선순위와 실행 전략 도출
 - `ReportWriterAgent`: 최종 보고서 생성
 - `SupervisorAgent`: 각 단계 검토 및 그래프 라우팅
+
+## Agent Tools
+
+- `MarketResearchCollectorAgent`: `WebSearchClient`로 시장/기업 기사 검색, 내부 `RAG` 코퍼스로 기업·시장 근거 보강
+- `TechniqueResearchCollectorAgent`: `RAG`로 기술/표준 PDF 검색, `WebSearchClient`의 OpenAlex·웹 검색으로 논문/리스크 검증
+- `PatentInnovationSignalAgent`: `SerpAPI` Google Patents 검색, `OpenAlex` 논문 검색, 일반 웹 검색, 실패 시 내부 `RAG` fallback
+- `TRLAssessmentAgent`: 내부 `TRL` 코퍼스 검색, 시장/기술/특허 evidence 종합, `OpenAI structured output` 기반 TRL 판정 fallback 포함
+- `ThreatEvaluationAgent`: `OpenAI structured output` 또는 규칙 기반 로직으로 위협 수준 평가
+- `StrategyPlannerAgent`: `OpenAI structured output` 또는 규칙 기반 로직으로 전략 추천 생성
+- `ReportWriterAgent`: Markdown/HTML 생성 후 `write_html_pdf` 또는 `write_simple_pdf`로 보고서 출력
+- `SupervisorAgent`: `SupervisorLLMReviewer`와 validation rule로 단계별 재시도 여부와 다음 노드 라우팅 결정
 
 ## Architecture
 
@@ -131,7 +142,7 @@ pip install -r requirements.txt
 ```
 
 ## Contributors
-- 김지성
-- 박진
-- 심유정
-- 이소율
+- 김지성: 아키텍처 설계, Trl, Threat, Strategy Agent 구현
+- 박진: 아키텍처 설계, Market Search Agent, Technique Search Agent 구현
+- 심유정: 아키텍처 설계, Report Agent, Patent Search Agent 구현
+- 이소율: 아키텍처 설계
