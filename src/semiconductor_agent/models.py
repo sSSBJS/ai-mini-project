@@ -142,3 +142,10 @@ class SupervisorDecision(BaseModel):
     step: str
     decision: str
     reason: str
+
+
+class SupervisorStageReview(BaseModel):
+    approved: bool
+    retry_target: str = "none"
+    summary: str
+    issues: List[ValidationIssue] = Field(default_factory=list)

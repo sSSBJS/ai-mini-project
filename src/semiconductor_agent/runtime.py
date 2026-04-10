@@ -13,6 +13,7 @@ class RuntimeConfig:
     enable_web_search: bool = False
     openai_model: str = "gpt-4o-mini"
     use_llm_planning: bool = False
+    use_llm_supervisor_review: bool = True
     research_reference_dir: Optional[Path] = None
     trl_reference_dir: Optional[Path] = None
     embedding_model_name: str = "intfloat/multilingual-e5-large-instruct"
@@ -29,6 +30,7 @@ class RuntimeConfig:
             enable_web_search=_get_bool_env("ENABLE_WEB_SEARCH", False),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             use_llm_planning=_get_bool_env("USE_LLM_PLANNING", False),
+            use_llm_supervisor_review=_get_bool_env("USE_LLM_SUPERVISOR_REVIEW", True),
             research_reference_dir=Path(research_dir).expanduser() if research_dir else None,
             trl_reference_dir=Path(trl_dir).expanduser() if trl_dir else None,
             embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME", "intfloat/multilingual-e5-large-instruct"),

@@ -76,6 +76,9 @@ def create_initial_state(
         retry_limits={
             "technique_research": 2,
             "market_research": 1,
+            "patent_innovation_signal": 1,
+            "trl_assessment": 1,
+            "threat_evaluation": 1,
             "strategy_planner": 1,
             "report_writer": 1,
         },
