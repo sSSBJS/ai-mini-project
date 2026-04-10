@@ -1,0 +1,43 @@
+# PDF Coverage Checklist
+
+아래 항목은 설계 PDF의 요구사항이 코드에 반영되었는지 확인한 결과다.
+
+- 중앙집중형 Supervisor 구조: 구현됨
+  - `src/semiconductor_agent/graph.py`
+  - `src/semiconductor_agent/agents.py`의 `SupervisorAgent`
+- 상단 아키텍처 7개 Agent: 구현됨
+  - Market & Research Collector
+  - Technique Research Collector
+  - Patent & Innovation Signal
+  - TRL Assessment
+  - Threat Evaluation
+  - Strategy Planner
+  - Report Writer
+- 내부 검증 노드: 구현됨
+  - `Evidence Validation Node`는 `TechniqueResearchCollectorAgent` 내부
+  - `Strategy Validate Node`는 `StrategyPlannerAgent` 내부
+  - `Report Validate Node`, `Formatting Node - PDF Generator`는 `ReportWriterAgent` 내부
+- RAG 코퍼스 분리: 구현됨
+  - `reference/research` 전용 retriever
+  - `reference/trl` 전용 retriever
+- Hybrid Retrieval(Dense + BM25): 구현됨
+  - `src/semiconductor_agent/rag.py`
+- 임베딩 모델 기본값: 구현됨
+  - 기본 모델명 `intfloat/multilingual-e5-large-instruct`
+- TRL `SHARED_STANDARDS`: 구현됨
+  - `src/semiconductor_agent/shared_standards.py`
+- 검색 편향 완화용 `BalancedSearchPlan`: 구현됨
+  - `src/semiconductor_agent/models.py`
+  - `src/semiconductor_agent/search.py`
+- 검색 5회 이내 제약: 구현됨
+  - `src/semiconductor_agent/state.py`
+- 보고서 목차 초안 구조: 구현됨
+  - `SUMMARY`
+  - `분석 배경`
+  - `핵심 기술 현황`
+  - `TRL 기반 기술 성숙도 분석`
+  - `경쟁 위협 수준 평가`
+  - `전략적 방향 및 대응제안`
+  - `REFERENCE`
+- 테스트 기반 검증: 구현됨
+  - `tests/test_pdf_architecture.py`

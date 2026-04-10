@@ -1,0 +1,166 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Length 4758 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 50 760 Tm (# SUMMARY) Tj
+1 0 0 1 50 744 Tm (기술별 현재 위치, 주요 경쟁사, 위협 수준, 전략 방향을 중심으로 정리한다.) Tj
+1 0 0 1 50 728 Tm (- SK hynix / HBM4: High 위협. SK hynix의 HBM4는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_ha) Tj
+1 0 0 1 50 712 Tm (- Samsung Electronics / HBM4: High 위협. Samsung Electronics의 HBM4는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_) Tj
+1 0 0 1 50 696 Tm (- Micron / HBM4: High 위협. Micron의 HBM4는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handbo) Tj
+1 0 0 1 50 680 Tm () Tj
+1 0 0 1 50 664 Tm (# 분석 배경) Tj
+1 0 0 1 50 648 Tm (HBM4, PIM, CXL 기술 전략 분석 보고서를 생성한다.) Tj
+1 0 0 1 50 632 Tm (시장 변화와 기술 중요성에 따라 HBM4, PIM, CXL을 동일 구조로 비교한다.) Tj
+1 0 0 1 50 616 Tm () Tj
+1 0 0 1 50 600 Tm (# 핵심 기술 현황) Tj
+1 0 0 1 50 584 Tm (## 시장 및 경쟁사 범위) Tj
+1 0 0 1 50 568 Tm (대상 기술은 HBM4, PIM, CXL로 고정하고 경쟁사는 SK hynix, Samsung Electronics, Micron, NVIDIA 범위에서 비교한다. 시장 조사는 후속 TRL/위협 평가가) Tj
+1 0 0 1 50 552 Tm (- SK hynix: 0 DQ6_0 VREFQ_ 0 WE_0_n or CK_0 RE_0_c DQS_0_c DQ1_0 DQ0_0 NU NU VSSQ DQ5_0 VSSQ RE_0_n \(RE_0_t\)) Tj
+1 0 0 1 50 536 Tm (- Samsung Electronics:  James E. Smith. The predictability of data values. InProceed- ings of the 30th Annual ) Tj
+1 0 0 1 50 520 Tm (- Micron:  James E. Smith. The predictability of data values. InProceed- ings of the 30th Annual ACM/IEEE Inte) Tj
+1 0 0 1 50 504 Tm (- NVIDIA: [54] Grant Ayers, Heiner Litz, Christos Kozyrakis, and Parthasarathy Ranganathan. Clas- sifying memo) Tj
+1 0 0 1 50 488 Tm (## HBM4) Tj
+1 0 0 1 50 472 Tm (HBM4는 PIM_표준.pdf [출처: PIM_표준.pdf p.15]를 통해 최신 구조와 기술 방향을 파악할 수 있다.) Tj
+1 0 0 1 50 456 Tm (- HBM4 관련 근거 요약: alable DRAM foundry & ecosystem • 3 top server partners Large App Deployed Customers • Codesi) Tj
+1 0 0 1 50 440 Tm (- HBM4 관련 근거 요약: [32] Santhosh Srinath, Onur Mutlu, Hyesoon Kim, and Yale N. Patt. Feedback directed prefetchi) Tj
+1 0 0 1 50 424 Tm (- HBM4 관련 근거 요약: [32] Santhosh Srinath, Onur Mutlu, Hyesoon Kim, and Yale N. Patt. Feedback directed prefetchi) Tj
+1 0 0 1 50 408 Tm (## PIM) Tj
+1 0 0 1 50 392 Tm (PIM는 PIM_표준.pdf [출처: PIM_표준.pdf p.9]를 통해 최신 구조와 기술 방향을 파악할 수 있다.) Tj
+1 0 0 1 50 376 Tm (- PIM 관련 근거 요약: Copyright UPMEM® 20239 Copyright UPMEM® 2023 TECHNOLOGY UPMEM 1st PIMêDRAM based MVP available) Tj
+1 0 0 1 50 360 Tm (- PIM 관련 근거 요약: uce PIM overhead, we propose a novel architecture: Processing-In-Memory using Load Value Predi) Tj
+1 0 0 1 50 344 Tm (- PIM 관련 근거 요약: uce PIM overhead, we propose a novel architecture: Processing-In-Memory using Load Value Predi) Tj
+1 0 0 1 50 328 Tm (## CXL) Tj
+1 0 0 1 50 312 Tm (CXL는 CXL.pdf [출처: CXL.pdf p.2]를 통해 최신 구조와 기술 방향을 파악할 수 있다.) Tj
+1 0 0 1 50 296 Tm (- CXL 관련 근거 요약: Meet CXL Consortium representatives and members at SC’25 The CXL Consortium will host demos at) Tj
+1 0 0 1 50 280 Tm (- CXL 관련 근거 요약: Meet CXL Consortium representatives and members at SC’25 The CXL Consortium will host demos at) Tj
+1 0 0 1 50 264 Tm (- CXL 관련 근거 요약:  Members – Statements of Support for the CXL 4.0 Speciﬁcation About the CXL Consortium The CXL) Tj
+1 0 0 1 50 248 Tm (## Patent & Innovation Signal 종합 해석) Tj
+1 0 0 1 50 232 Tm (- SK hynix / HBM4: SK hynix의 HBM4 관련 간접 지표를 수집했다. [출처: HBM4.pdf p.24]) Tj
+1 0 0 1 50 216 Tm (- Samsung Electronics / HBM4: Samsung Electronics의 HBM4 관련 간접 지표를 수집했다. [출처: HBM4학술.pdf p.16]) Tj
+1 0 0 1 50 200 Tm (- Micron / HBM4: Micron의 HBM4 관련 간접 지표를 수집했다. [출처: HBM4.pdf p.39]) Tj
+1 0 0 1 50 184 Tm (- NVIDIA / HBM4: NVIDIA의 HBM4 관련 간접 지표를 수집했다. [출처: HBM4학술.pdf p.39]) Tj
+1 0 0 1 50 168 Tm (- SK hynix / PIM: SK hynix의 PIM 관련 간접 지표를 수집했다. [출처: HBM4.pdf p.24]) Tj
+1 0 0 1 50 152 Tm (- Samsung Electronics / PIM: Samsung Electronics의 PIM 관련 간접 지표를 수집했다. [출처: PIM_표준.pdf p.9]) Tj
+1 0 0 1 50 136 Tm () Tj
+1 0 0 1 50 120 Tm (# TRL 기반 기술 성숙도 분석) Tj
+1 0 0 1 50 104 Tm (- SK hynix / HBM4: TRL 5, SK hynix의 HBM4는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handboo) Tj
+ET
+endstream
+endobj
+3 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 2 0 R >>
+endobj
+4 0 obj
+<< /Length 5582 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 50 760 Tm (- Samsung Electronics / HBM4: TRL 5, Samsung Electronics의 HBM4는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_syste) Tj
+1 0 0 1 50 744 Tm (- Micron / HBM4: TRL 5, Micron의 HBM4는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handbook_0.) Tj
+1 0 0 1 50 728 Tm (- NVIDIA / HBM4: TRL 5, NVIDIA의 HBM4는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handbook_0.) Tj
+1 0 0 1 50 712 Tm (- SK hynix / PIM: TRL 5, SK hynix의 PIM는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handbook_) Tj
+1 0 0 1 50 696 Tm (- Samsung Electronics / PIM: TRL 5, Samsung Electronics의 PIM는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems) Tj
+1 0 0 1 50 680 Tm (- Micron / PIM: TRL 5, Micron의 PIM는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handbook_0.pd) Tj
+1 0 0 1 50 664 Tm (- NVIDIA / PIM: TRL 5, NVIDIA의 PIM는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handbook_0.pd) Tj
+1 0 0 1 50 648 Tm (- SK hynix / CXL: TRL 5, SK hynix의 CXL는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handbook_) Tj
+1 0 0 1 50 632 Tm (- Samsung Electronics / CXL: TRL 5, Samsung Electronics의 CXL는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems) Tj
+1 0 0 1 50 616 Tm (- Micron / CXL: TRL 5, Micron의 CXL는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handbook_0.pd) Tj
+1 0 0 1 50 600 Tm (- NVIDIA / CXL: TRL 5, NVIDIA의 CXL는 range_4_6 규칙을 적용해 TRL 5로 판정했다. [출처: nasa_systems_engineering_handbook_0.pd) Tj
+1 0 0 1 50 584 Tm () Tj
+1 0 0 1 50 568 Tm (# 경쟁 위협 수준 평가) Tj
+1 0 0 1 50 552 Tm (- SK hynix / HBM4: High, SK hynix의 HBM4는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handb) Tj
+1 0 0 1 50 536 Tm (- Samsung Electronics / HBM4: High, Samsung Electronics의 HBM4는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_sys) Tj
+1 0 0 1 50 520 Tm (- Micron / HBM4: High, Micron의 HBM4는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handbook_) Tj
+1 0 0 1 50 504 Tm (- NVIDIA / HBM4: High, NVIDIA의 HBM4는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handbook_) Tj
+1 0 0 1 50 488 Tm (- SK hynix / PIM: High, SK hynix의 PIM는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handboo) Tj
+1 0 0 1 50 472 Tm (- Samsung Electronics / PIM: High, Samsung Electronics의 PIM는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_syste) Tj
+1 0 0 1 50 456 Tm (- Micron / PIM: High, Micron의 PIM는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handbook_0.) Tj
+1 0 0 1 50 440 Tm (- NVIDIA / PIM: High, NVIDIA의 PIM는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handbook_0.) Tj
+1 0 0 1 50 424 Tm (- SK hynix / CXL: High, SK hynix의 CXL는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handboo) Tj
+1 0 0 1 50 408 Tm (- Samsung Electronics / CXL: High, Samsung Electronics의 CXL는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_syste) Tj
+1 0 0 1 50 392 Tm (- Micron / CXL: High, Micron의 CXL는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handbook_0.) Tj
+1 0 0 1 50 376 Tm (- NVIDIA / CXL: High, NVIDIA의 CXL는 TRL 5와 간접 지표를 종합해 High 위협으로 분류했다. [출처: nasa_systems_engineering_handbook_0.) Tj
+1 0 0 1 50 360 Tm () Tj
+1 0 0 1 50 344 Tm (# 전략적 방향 및 대응제안) Tj
+1 0 0 1 50 328 Tm (- HBM4: priority=High, threat=High, action=HBM4의 핵심 검증 항목을 우선 투자 대상으로 두고, 경쟁사 추격 리스크를 줄이기 위한 개발 우선순위를 상향한다. [출) Tj
+1 0 0 1 50 312 Tm (  rationale: 내부 기준선이 제공되지 않아 공개 정보 기반 위협 수준을 우선 반영했다.) Tj
+1 0 0 1 50 296 Tm (- PIM: priority=High, threat=High, action=PIM의 핵심 검증 항목을 우선 투자 대상으로 두고, 경쟁사 추격 리스크를 줄이기 위한 개발 우선순위를 상향한다. [출처:) Tj
+1 0 0 1 50 280 Tm (  rationale: 내부 기준선이 제공되지 않아 공개 정보 기반 위협 수준을 우선 반영했다.) Tj
+1 0 0 1 50 264 Tm (- CXL: priority=High, threat=High, action=CXL의 핵심 검증 항목을 우선 투자 대상으로 두고, 경쟁사 추격 리스크를 줄이기 위한 개발 우선순위를 상향한다. [출처:) Tj
+1 0 0 1 50 248 Tm (  rationale: 내부 기준선이 제공되지 않아 공개 정보 기반 위협 수준을 우선 반영했다.) Tj
+1 0 0 1 50 232 Tm () Tj
+1 0 0 1 50 216 Tm (# REFERENCE) Tj
+1 0 0 1 50 200 Tm (- HBM4.pdf p.24 \(paper\)) Tj
+1 0 0 1 50 184 Tm (- HBM4학술.pdf p.13 \(paper\)) Tj
+1 0 0 1 50 168 Tm (- HBM4학술.pdf p.3 \(paper\)) Tj
+1 0 0 1 50 152 Tm (- PIM.pdf p.3 \(paper\)) Tj
+1 0 0 1 50 136 Tm (- HBM4.pdf p.53 \(paper\)) Tj
+1 0 0 1 50 120 Tm (- HBM4학술.pdf p.56 \(paper\)) Tj
+1 0 0 1 50 104 Tm (- PIM.pdf p.56 \(paper\)) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 1256 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 50 760 Tm (- PIM_표준.pdf p.3 \(standard\)) Tj
+1 0 0 1 50 744 Tm (- PIM_표준.pdf p.11 \(standard\)) Tj
+1 0 0 1 50 728 Tm (- HBM4.pdf p.40 \(paper\)) Tj
+1 0 0 1 50 712 Tm (- CXL.pdf p.2 \(standard\)) Tj
+1 0 0 1 50 696 Tm (- HBM4학술.pdf p.58 \(paper\)) Tj
+1 0 0 1 50 680 Tm (- PIM.pdf p.58 \(paper\)) Tj
+1 0 0 1 50 664 Tm (- HBM4학술.pdf p.12 \(paper\)) Tj
+1 0 0 1 50 648 Tm (- PIM.pdf p.12 \(paper\)) Tj
+1 0 0 1 50 632 Tm (- PIM_표준.pdf p.15 \(standard\)) Tj
+1 0 0 1 50 616 Tm (- PIM_표준.pdf p.9 \(standard\)) Tj
+1 0 0 1 50 600 Tm (- HBM4학술.pdf p.38 \(paper\)) Tj
+1 0 0 1 50 584 Tm (- PIM_학술1.pdf p.2 \(paper\)) Tj
+1 0 0 1 50 568 Tm (- PIM.pdf p.13 \(paper\)) Tj
+1 0 0 1 50 552 Tm (- HBM4학술.pdf p.16 \(paper\)) Tj
+1 0 0 1 50 536 Tm (- PIM.pdf p.16 \(paper\)) Tj
+1 0 0 1 50 520 Tm (- HBM4.pdf p.39 \(paper\)) Tj
+1 0 0 1 50 504 Tm (- HBM4.pdf p.2 \(paper\)) Tj
+1 0 0 1 50 488 Tm (- HBM4학술.pdf p.39 \(paper\)) Tj
+1 0 0 1 50 472 Tm (- PIM.pdf p.39 \(paper\)) Tj
+1 0 0 1 50 456 Tm (- nasa_systems_engineering_handbook_0.pdf p.291 \(report\)) Tj
+1 0 0 1 50 440 Tm (- nasa_systems_engineering_handbook_0.pdf p.205 \(report\)) Tj
+1 0 0 1 50 424 Tm (- nasa_systems_engineering_handbook_0.pdf p.11 \(report\)) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>
+endobj
+9 0 obj
+<< /Type /Catalog /Pages 8 0 R >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000079 00000 n 
+0000004889 00000 n 
+0000005015 00000 n 
+0000010649 00000 n 
+0000010775 00000 n 
+0000012083 00000 n 
+0000012209 00000 n 
+0000012278 00000 n 
+trailer
+<< /Size 10 /Root 9 0 R >>
+startxref
+12327
+%EOF
