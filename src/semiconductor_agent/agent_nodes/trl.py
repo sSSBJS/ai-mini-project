@@ -40,6 +40,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         techniques = state.get("technique_research")
         patent_signals = state.get("patent_innovation_signal")
         standards = state.get("shared_standards", {})
+        rulebase = standards.get("trl_evidence_rules", {})
         entries = []
         self.last_run_debug = {
             "llm_enabled": self.llm_enabled,
@@ -50,85 +51,109 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         for technology in state.get("target_technologies", []):
             tech_brief = techniques.technology_briefs.get(technology) if techniques else None
             for company in companies:
-                market_evidence = self._collect_market_evidence(market, company, technology)
-                matching_signals = []
-                if patent_signals:
-                    matching_signals = [
-                        entry for entry in patent_signals.entries if entry.company == company and entry.technology == technology
-                    ]
-
-                # 외부 TRL 문서는 규칙을 대신하지 않고, 현재 state 근거를 해석할 때 필요한 기준만 보강한다.
-                trl_context = self._retrieve_external_trl_guidance(
-                    company=company,
-                    technology=technology,
-                    market_evidence=market_evidence,
-                    tech_brief=tech_brief,
-                    patent_signals=matching_signals,
-                )
-                supporting_evidence = self._collect_supporting_evidence(
-                    market_evidence=market_evidence,
-                    trl_context=trl_context,
-                    tech_brief=tech_brief,
-                    matching_signals=matching_signals,
-                )
-                llm_assessment = self._assess_with_llm(
-                    company=company,
-                    technology=technology,
-                    market_evidence=market_evidence,
-                    tech_brief=tech_brief,
-                    patent_signals=matching_signals,
-                    trl_context=trl_context,
-                    shared_rulebase=standards.get("trl_evidence_rules", {}),
-                )
-
-                if llm_assessment is not None:
-                    supporting_evidence = self._select_supporting_evidence(
-                        market_evidence=market_evidence,
-                        tech_brief=tech_brief,
-                        patent_signals=matching_signals,
-                        trl_context=trl_context,
-                        selected_ids=llm_assessment.key_evidence_ids,
-                    )
-                    trl_level = llm_assessment.trl_level
-                    rule_range = llm_assessment.applied_rule_range
-                    confidence = llm_assessment.confidence
-                    estimated = llm_assessment.estimated
-                    reason = self._compose_reason(
-                        company=company,
-                        technology=technology,
-                        trl_level=trl_level,
-                        rule_range=rule_range,
-                        evidence=supporting_evidence,
-                        estimated=estimated,
-                        llm_reason=llm_assessment.reason,
-                    )
-                else:
-                    trl_level, rule_range, confidence, estimated = self._determine_trl(
-                        tech_brief.supporting_evidence if tech_brief else [],
-                        matching_signals,
-                    )
-                    reason = self._compose_reason(
-                        company=company,
-                        technology=technology,
-                        trl_level=trl_level,
-                        rule_range=rule_range,
-                        evidence=supporting_evidence,
-                        estimated=estimated,
-                    )
-
                 entries.append(
-                    TRLAssessmentEntry(
-                        technology=technology,
+                    self._assess_entry(
                         company=company,
-                        trl=trl_level,
-                        summary=reason,
+                        technology=technology,
+                        market=market,
+                        tech_brief=tech_brief,
+                        patent_signals=patent_signals.entries if patent_signals else [],
+                        shared_rulebase=rulebase,
                     )
                 )
 
         return {
-            "trl_assessment": TRLAssessmentResult(entries=entries),
+            "trl_assessment": TRLAssessmentResult(
+                entries=entries,
+                shared_standards_used=rulebase,
+            ),
             "last_completed_step": self.agent_key,
         }
+
+    def _assess_entry(
+        self,
+        company: str,
+        technology: str,
+        market: Optional[MarketResearchResult],
+        tech_brief: Optional[TechnologyBrief],
+        patent_signals: Sequence[PatentSignalEntry],
+        shared_rulebase: Dict[str, object],
+    ) -> TRLAssessmentEntry:
+        market_evidence = self._collect_market_evidence(market, company, technology)
+        matching_signals = [
+            entry for entry in patent_signals if entry.company == company and entry.technology == technology
+        ]
+        trl_context = self._retrieve_external_trl_guidance(
+            company=company,
+            technology=technology,
+            market_evidence=market_evidence,
+            tech_brief=tech_brief,
+            patent_signals=matching_signals,
+        )
+        default_supporting_evidence = self._collect_supporting_evidence(
+            market_evidence=market_evidence,
+            trl_context=trl_context,
+            tech_brief=tech_brief,
+            matching_signals=matching_signals,
+        )
+        llm_assessment = self._assess_with_llm(
+            company=company,
+            technology=technology,
+            market_evidence=market_evidence,
+            tech_brief=tech_brief,
+            patent_signals=matching_signals,
+            trl_context=trl_context,
+            shared_rulebase=shared_rulebase,
+        )
+
+        if llm_assessment is None:
+            trl_level, rule_range, confidence, estimated = self._determine_trl(
+                tech_brief.supporting_evidence if tech_brief else [],
+                matching_signals,
+            )
+            return TRLAssessmentEntry(
+                technology=technology,
+                company=company,
+                trl_level=trl_level,
+                reason=self._compose_reason(
+                    company=company,
+                    technology=technology,
+                    trl_level=trl_level,
+                    rule_range=rule_range,
+                    evidence=default_supporting_evidence,
+                    estimated=estimated,
+                ),
+                applied_rule_range=rule_range,
+                supporting_evidence=list(default_supporting_evidence),
+                confidence=confidence,
+                estimated=estimated,
+            )
+
+        selected_supporting_evidence = self._select_supporting_evidence(
+            market_evidence=market_evidence,
+            tech_brief=tech_brief,
+            patent_signals=matching_signals,
+            trl_context=trl_context,
+            selected_ids=llm_assessment.key_evidence_ids,
+        )
+        return TRLAssessmentEntry(
+            technology=technology,
+            company=company,
+            trl_level=llm_assessment.trl_level,
+            reason=self._compose_reason(
+                company=company,
+                technology=technology,
+                trl_level=llm_assessment.trl_level,
+                rule_range=llm_assessment.applied_rule_range,
+                evidence=selected_supporting_evidence,
+                estimated=llm_assessment.estimated,
+                llm_reason=llm_assessment.reason,
+            ),
+            applied_rule_range=llm_assessment.applied_rule_range,
+            supporting_evidence=list(selected_supporting_evidence),
+            confidence=llm_assessment.confidence,
+            estimated=llm_assessment.estimated,
+        )
 
     @property
     def llm_enabled(self) -> bool:
@@ -259,7 +284,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         matched = []
         for item in market.company_findings.get(company, []):
             if item.technology in (None, technology):
-                matched.append(item)
+                matched.append(self._normalize_evidence_item(item))
         return matched[:3]
 
     def _retrieve_external_trl_guidance(
@@ -280,7 +305,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         gathered = []
         for query in queries:
             gathered.extend(self.dependencies.corpora.search("trl", query, top_k=2))
-        return self._dedupe_evidence(gathered)[:6]
+        return self._dedupe_evidence(self._normalize_evidence_items(gathered))[:6]
 
     def _build_trl_queries(
         self,
@@ -326,9 +351,9 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         # 결과와 보고서에 재사용할 근거를 시장/기술/간접지표/RAG에서 균형 있게 묶는다.
         supporting_evidence = list(market_evidence[:1])
         if tech_brief:
-            supporting_evidence.extend(tech_brief.supporting_evidence[:1])
+            supporting_evidence.extend(self._normalize_evidence_items(tech_brief.supporting_evidence[:1]))
         if matching_signals:
-            supporting_evidence.extend(matching_signals[0].indirect_evidence[:1])
+            supporting_evidence.extend(self._normalize_evidence_items(matching_signals[0].indirect_evidence[:1]))
         supporting_evidence.extend(trl_context[:2])
         return self._dedupe_evidence(supporting_evidence)[:4]
 
@@ -374,14 +399,14 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         # 프롬프트와 응답에서 같은 근거를 안정적으로 가리키도록 id를 붙인다.
         evidence_map = {}
         for index, item in enumerate(market_evidence[:3], start=1):
-            evidence_map["M%s" % index] = item
+            evidence_map["M%s" % index] = self._normalize_evidence_item(item)
         for index, item in enumerate(tech_brief.supporting_evidence[:3] if tech_brief else [], start=1):
-            evidence_map["T%s" % index] = item
+            evidence_map["T%s" % index] = self._normalize_evidence_item(item)
         if patent_signals:
             for index, item in enumerate(patent_signals[0].indirect_evidence[:3], start=1):
-                evidence_map["P%s" % index] = item
+                evidence_map["P%s" % index] = self._normalize_evidence_item(item)
         for index, item in enumerate(trl_context[:4], start=1):
-            evidence_map["R%s" % index] = item
+            evidence_map["R%s" % index] = self._normalize_evidence_item(item)
         return evidence_map
 
     def _serialize_market_evidence(self, market_evidence: Sequence[EvidenceItem]) -> Sequence[Dict[str, object]]:
@@ -456,7 +481,22 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         }
 
     def _build_simple_evidence_map(self, prefix: str, items: Sequence[EvidenceItem]) -> Dict[str, EvidenceItem]:
-        return {"%s%s" % (prefix, index): item for index, item in enumerate(items, start=1)}
+        return {
+            "%s%s" % (prefix, index): self._normalize_evidence_item(item)
+            for index, item in enumerate(items, start=1)
+        }
+
+    def _normalize_evidence_items(self, items: Sequence[object]) -> List[EvidenceItem]:
+        return [self._normalize_evidence_item(item) for item in items]
+
+    def _normalize_evidence_item(self, item: object) -> EvidenceItem:
+        if isinstance(item, EvidenceItem):
+            return item
+        if hasattr(item, "model_dump"):
+            return EvidenceItem(**item.model_dump())
+        if isinstance(item, dict):
+            return EvidenceItem(**item)
+        raise TypeError("Unsupported evidence item type: %s" % type(item).__name__)
 
     def _dedupe_evidence(self, items: Sequence[EvidenceItem]) -> List[EvidenceItem]:
         deduped = []
@@ -526,7 +566,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
             return "TRL 판정 결과 없음"
         rendered = []
         for entry in entries:
-            rendered.append("%s/%s=TRL %d" % (entry.company, entry.technology, entry.trl))
+            rendered.append("%s/%s=TRL %d" % (entry.company, entry.technology, entry.trl_level))
         return "; ".join(rendered)
 
     @staticmethod

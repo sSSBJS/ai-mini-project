@@ -143,8 +143,10 @@ def build_stage_snapshot(stage_name: str, state: AgentState) -> Dict[str, object
                 {
                     "company": entry.company,
                     "technology": entry.technology,
-                    "trl": entry.trl,
-                    "summary": entry.summary,
+                    "trl_level": entry.trl_level,
+                    "reason": entry.reason,
+                    "confidence": entry.confidence,
+                    "supporting_evidence_count": len(entry.supporting_evidence),
                 }
                 for entry in (trl.entries if trl else [])
             ],

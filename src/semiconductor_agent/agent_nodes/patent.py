@@ -1,35 +1,17 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import re
-import sys
 import urllib.parse
 import urllib.request
 from datetime import date
-from pathlib import Path
 from typing import Any, Dict
 
 from semiconductor_agent.agent_nodes.base import BaseWorkflowAgent
-from semiconductor_agent.models import EvidenceItem
+from semiconductor_agent.models import EvidenceItem, PatentInnovationSignalResult, PatentSignalEntry
 from semiconductor_agent.search import build_balanced_search_plan
 from semiconductor_agent.state import AgentState
-
-
-# CHANGED: patent.py가 별도 모델 파일(models/models.py)의 구조화 출력 모델을 직접 로드하도록 연결.
-_PATENT_MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "models.py"
-_PATENT_MODEL_SPEC = importlib.util.spec_from_file_location("semiconductor_agent_patent_models", _PATENT_MODEL_PATH)
-if _PATENT_MODEL_SPEC is None or _PATENT_MODEL_SPEC.loader is None:
-    raise ImportError("Failed to load patent output models from %s" % _PATENT_MODEL_PATH)
-_PATENT_MODEL_MODULE = importlib.util.module_from_spec(_PATENT_MODEL_SPEC)
-sys.modules[_PATENT_MODEL_SPEC.name] = _PATENT_MODEL_MODULE
-_PATENT_MODEL_SPEC.loader.exec_module(_PATENT_MODEL_MODULE)
-PatentInnovationSignalResult = _PATENT_MODEL_MODULE.PatentInnovationSignalResult
-PatentSignalEntry = _PATENT_MODEL_MODULE.PatentSignalEntry
-# CHANGED: 동적 로드된 Pydantic 모델의 forward reference 해석을 완료해 단독 실행 오류를 방지.
-PatentSignalEntry.model_rebuild()
-PatentInnovationSignalResult.model_rebuild()
 
 
 class PatentInnovationSignalAgent(BaseWorkflowAgent):
@@ -89,7 +71,7 @@ class PatentInnovationSignalAgent(BaseWorkflowAgent):
                         patent_activity_summary=patent_activity_summary,
                         patent_paper_link_summary=patent_paper_link_summary,
                         ecosystem_signal_summary=ecosystem_signal_summary,
-                        indirect_evidence=[item.model_dump() for item in evidence],
+                        indirect_evidence=list(evidence),
                         confidence=confidence,
                         estimated=estimated,
                     )

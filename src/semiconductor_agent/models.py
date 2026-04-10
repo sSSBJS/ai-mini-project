@@ -3,7 +3,23 @@ from __future__ import annotations
 from datetime import date
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _coerce_evidence_list(value):
+    if value is None:
+        return []
+    coerced = []
+    for item in value:
+        if isinstance(item, EvidenceItem):
+            coerced.append(item)
+        elif hasattr(item, "model_dump"):
+            coerced.append(EvidenceItem(**item.model_dump()))
+        elif isinstance(item, dict):
+            coerced.append(EvidenceItem(**item))
+        else:
+            coerced.append(item)
+    return coerced
 
 
 class BalancedSearchPlan(BaseModel):
@@ -51,6 +67,11 @@ class TechnologyBrief(BaseModel):
     freshness_note: str
     validation_issues: List[ValidationIssue] = Field(default_factory=list)
 
+    @field_validator("supporting_evidence", mode="before")
+    @classmethod
+    def _validate_supporting_evidence(cls, value):
+        return _coerce_evidence_list(value)
+
 
 class MarketResearchResult(BaseModel):
     selected_companies: List[str]
@@ -70,9 +91,17 @@ class PatentSignalEntry(BaseModel):
     technology: str
     company: str
     signal_summary: str
+    patent_activity_summary: Optional[str] = None
+    patent_paper_link_summary: Optional[str] = None
+    ecosystem_signal_summary: Optional[str] = None
     indirect_evidence: List[EvidenceItem]
     confidence: str
     estimated: bool = False
+
+    @field_validator("indirect_evidence", mode="before")
+    @classmethod
+    def _validate_indirect_evidence(cls, value):
+        return _coerce_evidence_list(value)
 
 
 class PatentInnovationSignalResult(BaseModel):
@@ -93,12 +122,30 @@ class TRLLLMAssessment(BaseModel):
 class TRLAssessmentEntry(BaseModel):
     technology: str
     company: str
-    trl: int
-    summary: str
+    trl_level: int
+    reason: str
+    applied_rule_range: str
+    supporting_evidence: List[EvidenceItem]
+    confidence: str
+    estimated: bool = False
+
+    @field_validator("supporting_evidence", mode="before")
+    @classmethod
+    def _validate_supporting_evidence(cls, value):
+        return _coerce_evidence_list(value)
+
+    @property
+    def trl(self) -> int:
+        return self.trl_level
+
+    @property
+    def summary(self) -> str:
+        return self.reason
 
 
 class TRLAssessmentResult(BaseModel):
     entries: List[TRLAssessmentEntry]
+    shared_standards_used: Dict[str, object] = Field(default_factory=dict)
 
 
 class ThreatEntry(BaseModel):
@@ -108,9 +155,20 @@ class ThreatEntry(BaseModel):
     rationale: str
     supporting_evidence: List[EvidenceItem]
 
+    @field_validator("supporting_evidence", mode="before")
+    @classmethod
+    def _validate_supporting_evidence(cls, value):
+        return _coerce_evidence_list(value)
+
 
 class ThreatEvaluationResult(BaseModel):
     entries: List[ThreatEntry]
+
+
+class ThreatLLMAssessment(BaseModel):
+    threat_level: str
+    rationale: str
+    key_evidence_ids: List[str] = Field(default_factory=list)
 
 
 class StrategyRecommendation(BaseModel):
@@ -118,6 +176,12 @@ class StrategyRecommendation(BaseModel):
     priority: str
     recommendation: str
     linked_threat_level: str
+    rationale: str
+
+
+class StrategyLLMRecommendation(BaseModel):
+    priority: str
+    recommendation: str
     rationale: str
 
 
