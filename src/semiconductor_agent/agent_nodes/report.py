@@ -78,127 +78,77 @@ class ReportWriterAgent(BaseWorkflowAgent):
 
         lines = []
         lines.append("# OVERVIEW")
-        lines.append("핵심기술의 현재 위치, 주요 기업, 위협 수준, 전략 방향을 한눈에 파악할 수 있도록 정리한다.")
-        overview_summary = self._overview_strategy_summary(strategy, highest_threat_by_technology)
-        if overview_summary:
-            lines.append(overview_summary)
+        lines.append(self._overview_headline(state, highest_threat_by_technology))
         lines.append("")
         lines.extend(self._executive_summary_table(state, highest_threat_by_technology))
+        overview_summary = self._overview_strategy_summary(strategy, highest_threat_by_technology)
+        overview_takeaways = self._overview_takeaways(state, highest_threat_by_technology)
+        if overview_summary or overview_takeaways:
+            lines.append("")
+            lines.append("## 핵심 인사이트")
+            if overview_summary:
+                lines.append("- %s" % overview_summary)
+            for takeaway in overview_takeaways:
+                lines.append("- %s" % takeaway)
 
         lines.append("")
         lines.append("# 분석 배경")
         lines.append(state.get("user_query", ""))
-        lines.append("시장·기술·특허·혁신 신호·TRL·위협 수준·전략 제안을 하나의 흐름으로 통합 해석한다.")
+        lines.append("시장·기술·특허·혁신 신호·TRL·위협 수준·전략 제안을 하나의 흐름으로 통합 해석해 의사결정 관점으로 재정리했다.")
 
         lines.append("")
         lines.append("# 핵심 기술 현황")
         if market:
-            # CHANGED: 시장 및 기업 분석 섹션을 표 중심으로 재구성.
-            lines.append("## 시장 및 기업 분석 섹션")
-            lines.append(market.market_summary)
+            lines.append("## 시장 및 기업 분석")
+            lines.append(self._shorten(market.market_summary, 260))
             lines.append("")
             lines.extend(self._market_company_table(market))
         if techniques:
-            # CHANGED: 기술별 분석 섹션을 기술 정의/핵심 포인트/발전 방향 형태로 정리.
-            lines.append("## 기술별 분석 섹션")
-            for brief in techniques.technology_briefs.values():
-                lines.append("### %s" % brief.technology)
-                lines.append(brief.summary)
-                if brief.core_claims:
-                    lines.append("- 핵심 주장: %s" % "; ".join(brief.core_claims[:3]))
-                if brief.expansion_keywords:
-                    lines.append("- 발전 방향 및 최신 동향: %s" % ", ".join(brief.expansion_keywords[:5]))
-                for point in brief.key_points:
-                    lines.append("- %s" % point)
-                if brief.supporting_evidence:
-                    lines.append("- 대표 근거: %s" % self._citation(brief.supporting_evidence[0]))
+            lines.append("## 기술 스냅샷")
+            lines.extend(self._technology_snapshot_table(techniques))
         if patent:
-            # CHANGED: Patent & Innovation Signal을 세부 요약 필드 기준으로 종합 해석.
             lines.append("## Patent & Innovation Signal 종합 해석")
             lines.append("")
             lines.extend(self._patent_signal_table(patent))
-            for entry in patent.entries[:6]:
-                prefix = "[추정] " if entry.estimated else ""
-                citation = self._citation(entry.indirect_evidence[0]) if entry.indirect_evidence else ""
-                lines.append("### %s%s / %s" % (prefix, entry.company, entry.technology))
-                lines.append("- 통합 해석: %s %s" % (entry.signal_summary, citation))
-                lines.append(
-                    "- 특허 activity: %s"
-                    % self._safe_getattr(
-                        entry,
-                        "patent_activity_summary",
-                        "특허 activity 요약이 제공되지 않아 간접 근거 중심으로 해석함.",
-                    )
-                )
-                lines.append(
-                    "- 특허-논문 연결: %s"
-                    % self._safe_getattr(
-                        entry,
-                        "patent_paper_link_summary",
-                        "NPL, 동일 발명자, 시간차 관련 근거는 제한적으로 확인됨.",
-                    )
-                )
-                lines.append(
-                    "- 생태계·사업화 신호: %s"
-                    % self._safe_getattr(
-                        entry,
-                        "ecosystem_signal_summary",
-                        "파트너십·투자·사업화 관련 신호를 간접 evidence로 보완함.",
-                    )
-                )
+            takeaways = self._patent_takeaways(state, patent)
+            if takeaways:
+                lines.append("")
+                lines.append("### 핵심 해석")
+                for takeaway in takeaways:
+                    lines.append("- %s" % takeaway)
 
         lines.append("")
         lines.append("# TRL 기반 기술 성숙도 분석")
         if trl:
-            # CHANGED: TRL 결과를 표로 먼저 요약하고 근거를 이어서 제공.
             lines.extend(self._trl_table(trl))
-            for entry in trl.entries:
-                prefix = "[추정] " if entry.estimated else ""
-                citation = self._citation(entry.supporting_evidence[0]) if entry.supporting_evidence else ""
-                lines.append(
-                    "- %s%s / %s: TRL %d, %s, confidence=%s %s"
-                    % (
-                        prefix,
-                        entry.company,
-                        entry.technology,
-                        entry.trl_level,
-                        entry.reason,
-                        entry.confidence,
-                        citation,
-                    )
-                )
+            takeaways = self._trl_takeaways(state, trl)
+            if takeaways:
+                lines.append("")
+                lines.append("## SK hynix 중심 해석")
+                for takeaway in takeaways:
+                    lines.append("- %s" % takeaway)
 
         lines.append("")
         lines.append("# 경쟁 위협 수준 평가")
         if threat:
-            # CHANGED: Threat Evaluation 결과를 표 형식으로 정리.
             lines.extend(self._threat_table(threat))
-            for entry in threat.entries:
-                citation = self._citation(entry.supporting_evidence[0]) if entry.supporting_evidence else ""
-                lines.append(
-                    "- %s / %s: %s, %s %s"
-                    % (entry.company, entry.technology, entry.threat_level, entry.rationale, citation)
-                )
+            takeaways = self._threat_takeaways(state, threat)
+            if takeaways:
+                lines.append("")
+                lines.append("## 주요 경쟁 위협")
+                for takeaway in takeaways:
+                    lines.append("- %s" % takeaway)
 
         lines.append("")
         lines.append("# 전략적 방향 및 대응제안")
         if strategy:
-            # CHANGED: Strategy Recommendation을 실행 가능한 액션 중심의 표로 제공.
             lines.extend(self._strategy_table(strategy))
-            for recommendation in strategy.recommendations:
-                threat_entry = highest_threat_by_technology.get(recommendation.technology)
-                citation = self._citation(threat_entry.supporting_evidence[0]) if threat_entry and threat_entry.supporting_evidence else ""
-                lines.append(
-                    "- %s: priority=%s, threat=%s, action=%s %s"
-                    % (
-                        recommendation.technology,
-                        recommendation.priority,
-                        recommendation.linked_threat_level,
-                        recommendation.recommendation,
-                        citation,
-                    )
-                )
-                lines.append("  rationale: %s" % recommendation.rationale)
+            actions = self._strategy_action_plan(strategy)
+            if actions:
+                lines.append("")
+                lines.append("## 실행 권고")
+                for action in actions:
+                    lines.append("- %s" % action)
 
         lines.append("")
         lines.append("# REFERENCE")
@@ -224,13 +174,14 @@ class ReportWriterAgent(BaseWorkflowAgent):
             for title, body_lines in sections
         )
         technologies = ", ".join(state.get("target_technologies", [])[:5]) or "N/A"
-        companies = ", ".join((state.get("selected_companies", []) or state.get("candidate_companies", []))[:5]) or "N/A"
+        primary_company = self._primary_company(state)
+        comparison_companies = ", ".join(self._comparison_companies(state)[:3]) or "N/A"
         template = """<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Semiconductor Strategy Report</title>
+  <title>SK hynix 기술 전략 분석 보고서</title>
   <style>
     :root {
       --ink: #1f2937;
@@ -331,6 +282,7 @@ class ReportWriterAgent(BaseWorkflowAgent):
       overflow: hidden;
       border-radius: 12px;
       font-size: 14px;
+      table-layout: fixed;
     }
     thead th {
       background: var(--brand-soft);
@@ -344,6 +296,9 @@ class ReportWriterAgent(BaseWorkflowAgent):
       padding: 10px 12px;
       border-bottom: 1px solid #e5e7eb;
       vertical-align: top;
+      white-space: normal;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
     tbody tr:nth-child(even) td {
       background: var(--panel-alt);
@@ -364,19 +319,20 @@ class ReportWriterAgent(BaseWorkflowAgent):
       .hero { padding: 20px 18px; }
       h1 { font-size: 28px; }
       .report-section { padding: 18px 16px 14px; }
-      table { font-size: 13px; display: block; overflow-x: auto; white-space: nowrap; }
+      table { font-size: 12px; table-layout: fixed; }
+      th, td { white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header class="hero">
-      <div class="eyebrow">Semiconductor Strategy Report</div>
-      <h1>Signals, Readiness, and Strategic Direction</h1>
-      <div class="subtitle">시장·기술·특허·혁신 신호를 안정적으로 읽히는 문서형 레이아웃으로 구성한 전략 보고서</div>
+      <div class="eyebrow">Technology Strategy Report</div>
+      <h1>SK hynix 기술 전략 분석 보고서</h1>
       <div class="badges">
+        <span class="badge">대상 기업: __PRIMARY_COMPANY__</span>
+        <span class="badge">비교군: __COMPARISON_COMPANIES__</span>
         <span class="badge">대상 기술: __TECHNOLOGIES__</span>
-        <span class="badge">주요 기업: __COMPANIES__</span>
       </div>
     </header>
     __SECTION_HTML__
@@ -386,7 +342,8 @@ class ReportWriterAgent(BaseWorkflowAgent):
 """
         return (
             template.replace("__TECHNOLOGIES__", html.escape(technologies))
-            .replace("__COMPANIES__", html.escape(companies))
+            .replace("__PRIMARY_COMPANY__", html.escape(primary_company))
+            .replace("__COMPARISON_COMPANIES__", html.escape(comparison_companies))
             .replace("__SECTION_HTML__", section_html)
         )
 
@@ -634,15 +591,15 @@ class ReportWriterAgent(BaseWorkflowAgent):
             threat_entry = highest_threat_by_technology.get(recommendation.technology)
             threat_level = threat_entry.threat_level if threat_entry else recommendation.linked_threat_level
             fragments.append(
-                "%s는 %s 위협 기준으로 %s 우선순위를 두고 %s"
+                "%s는 %s 위협 기준으로 %s 우선순위를 적용하고 %s"
                 % (
                     recommendation.technology,
                     threat_level,
                     recommendation.priority,
-                    recommendation.recommendation,
+                    self._shorten(recommendation.recommendation, 44),
                 )
             )
-        return "전략 요약: %s" % " ".join(fragments)
+        return "우선 실행 방향은 %s이다." % " / ".join(fragments)
 
     # CHANGED: 임원용 요약 표를 생성.
     def _executive_summary_table(self, state: AgentState, highest_threat_by_technology: Dict[str, object]) -> List[str]:
@@ -667,11 +624,49 @@ class ReportWriterAgent(BaseWorkflowAgent):
             recommendation = strategy_by_tech.get(technology)
             current_position = "TRL %s" % trl_entry.trl_level if trl_entry else "판정 전"
             threat_level = threat_entry.threat_level if threat_entry else "-"
-            action = recommendation.recommendation[:50] + "..." if recommendation and len(recommendation.recommendation) > 50 else (recommendation.recommendation if recommendation else "-")
+            action = self._table_text(recommendation.recommendation) if recommendation else "-"
             lines.append("| %s | %s | %s | %s | %s |" % (technology, current_position, company_text, threat_level, action))
         return lines
 
-    # CHANGED: 시장 및 기업 분석 표를 생성.
+    def _overview_headline(self, state: AgentState, highest_threat_by_technology: Dict[str, object]) -> str:
+        primary_company = self._primary_company(state)
+        technologies = state.get("target_technologies", [])
+        if not technologies:
+            return "%s의 핵심 메모리 기술 포트폴리오에 대한 전략 관점을 정리했다." % primary_company
+        top_threat = max(
+            (threat_rank(entry.threat_level), entry.threat_level) for entry in highest_threat_by_technology.values()
+        ) if highest_threat_by_technology else None
+        if top_threat:
+            return "%s의 %s 전략을 중심으로 기술 성숙도와 경쟁 위협을 압축 정리했다. 현재 최고 위협 수준은 %s로 평가된다." % (
+                primary_company,
+                ", ".join(technologies[:3]),
+                top_threat[1],
+            )
+        return "%s의 %s 전략을 중심으로 기술 성숙도와 경쟁 구도를 압축 정리했다." % (
+            primary_company,
+            ", ".join(technologies[:3]),
+        )
+
+    def _overview_takeaways(self, state: AgentState, highest_threat_by_technology: Dict[str, object]) -> List[str]:
+        strategy = state.get("strategy_plan")
+        takeaways: List[str] = []
+        if strategy and strategy.recommendations:
+            high_priority = [item.technology for item in strategy.recommendations if item.priority == "High"]
+            if high_priority:
+                takeaways.append("우선 투자 축은 %s이며, 단기 제품화 또는 실증 확보가 핵심 과제로 정리된다." % ", ".join(high_priority[:3]))
+        if highest_threat_by_technology:
+            crowded = [
+                technology
+                for technology, entry in highest_threat_by_technology.items()
+                if threat_rank(entry.threat_level) >= threat_rank("Medium")
+            ]
+            if crowded:
+                takeaways.append("%s는 경쟁 신호가 두드러져 비교 기업의 상용화 속도와 생태계 결속을 함께 추적해야 한다." % ", ".join(crowded[:3]))
+        if state.get("technique_research"):
+            tech_count = len(state["technique_research"].technology_briefs)
+            takeaways.append("기술 조사는 %s개 핵심 영역을 기준으로 시장, TRL, 전략 판단까지 동일 축으로 연결했다." % tech_count)
+        return takeaways[:3]
+
     def _market_company_table(self, market) -> List[str]:
         lines = [
             "| 기업 | 주요 활동 | 투자/경쟁 구도 단서 | 출처 |",
@@ -681,8 +676,8 @@ class ReportWriterAgent(BaseWorkflowAgent):
             evidence = market.company_findings.get(company, [])
             if evidence:
                 item = evidence[0]
-                activity = item.content[:70].replace("|", "/")
-                investment_hint = evidence[1].content[:50].replace("|", "/") if len(evidence) > 1 else item.source_type
+                activity = self._table_text(item.content)
+                investment_hint = self._table_text(evidence[1].content) if len(evidence) > 1 else item.source_type
                 citation = self._citation(item)
             else:
                 activity = "-"
@@ -691,7 +686,24 @@ class ReportWriterAgent(BaseWorkflowAgent):
             lines.append("| %s | %s | %s | %s |" % (company, activity, investment_hint, citation))
         return lines
 
-    # CHANGED: Patent & Innovation Signal 표를 생성.
+    def _technology_snapshot_table(self, techniques) -> List[str]:
+        lines = [
+            "| 기술 | 핵심 요약 | 주요 포인트 | 최신성 메모 |",
+            "| --- | --- | --- | --- |",
+        ]
+        for brief in techniques.technology_briefs.values():
+            point = brief.key_points[0] if brief.key_points else (brief.core_claims[0] if brief.core_claims else "-")
+            lines.append(
+                "| %s | %s | %s | %s |"
+                % (
+                    brief.technology,
+                    self._table_text(brief.summary),
+                    self._table_text(point),
+                    self._table_text(brief.freshness_note),
+                )
+            )
+        return lines
+
     def _patent_signal_table(self, patent) -> List[str]:
         lines = [
             "| 기업 | 기술 | 특허 activity | 특허-논문 연결 | 생태계·사업화 신호 | confidence |",
@@ -703,15 +715,40 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 % (
                     entry.company,
                     entry.technology,
-                    self._shorten(self._safe_getattr(entry, "patent_activity_summary", entry.signal_summary), 80),
-                    self._shorten(self._safe_getattr(entry, "patent_paper_link_summary", "제한적"), 80),
-                    self._shorten(self._safe_getattr(entry, "ecosystem_signal_summary", "제한적"), 80),
+                    self._table_text(self._safe_getattr(entry, "patent_activity_summary", entry.signal_summary)),
+                    self._table_text(self._safe_getattr(entry, "patent_paper_link_summary", "제한적")),
+                    self._table_text(self._safe_getattr(entry, "ecosystem_signal_summary", "제한적")),
                     entry.confidence,
                 )
             )
         return lines
 
-    # CHANGED: TRL 표를 생성.
+    def _patent_takeaways(self, state: AgentState, patent) -> List[str]:
+        primary_company = self._primary_company(state)
+        takeaways: List[str] = []
+        primary_entries = [entry for entry in patent.entries if entry.company == primary_company][:3]
+        for entry in primary_entries:
+            citation = self._citation(entry.indirect_evidence[0]) if entry.indirect_evidence else ""
+            takeaways.append(
+                "%s는 %s에서 %s %s"
+                % (
+                    primary_company,
+                    entry.technology,
+                    self._shorten(entry.signal_summary, 110),
+                    citation,
+                )
+            )
+        if not takeaways and patent.entries:
+            top_entry = patent.entries[0]
+            takeaways.append(
+                "%s에서 %s"
+                % (
+                    top_entry.technology,
+                    self._shorten(top_entry.signal_summary, 120),
+                )
+            )
+        return takeaways[:3]
+
     def _trl_table(self, trl) -> List[str]:
         lines = [
             "| 기업 | 기술 | TRL | 판정 근거 | confidence |",
@@ -720,21 +757,56 @@ class ReportWriterAgent(BaseWorkflowAgent):
         for entry in trl.entries:
             lines.append(
                 "| %s | %s | %s | %s | %s |"
-                % (entry.company, entry.technology, entry.trl_level, self._shorten(entry.reason, 90), entry.confidence)
+                % (entry.company, entry.technology, entry.trl_level, self._table_text(entry.reason), entry.confidence)
             )
         return lines
 
-    # CHANGED: Threat Evaluation 표를 생성.
+    def _trl_takeaways(self, state: AgentState, trl) -> List[str]:
+        primary_company = self._primary_company(state)
+        entries = [entry for entry in trl.entries if entry.company == primary_company]
+        takeaways: List[str] = []
+        for entry in entries[:3]:
+            citation = self._citation(entry.supporting_evidence[0]) if entry.supporting_evidence else ""
+            takeaways.append(
+                "%s의 %s는 TRL %s로 평가되며, %s %s"
+                % (
+                    primary_company,
+                    entry.technology,
+                    entry.trl_level,
+                    self._shorten(entry.reason, 110),
+                    citation,
+                )
+            )
+        return takeaways
+
     def _threat_table(self, threat) -> List[str]:
         lines = [
             "| 기업 | 기술 | 위협 수준 | 근거 요약 |",
             "| --- | --- | --- | --- |",
         ]
         for entry in threat.entries:
-            lines.append("| %s | %s | %s | %s |" % (entry.company, entry.technology, entry.threat_level, self._shorten(entry.rationale, 100)))
+            lines.append("| %s | %s | %s | %s |" % (entry.company, entry.technology, entry.threat_level, self._table_text(entry.rationale)))
         return lines
 
-    # CHANGED: Strategy Recommendation 표를 생성.
+    def _threat_takeaways(self, state: AgentState, threat) -> List[str]:
+        primary_company = self._primary_company(state)
+        selected_entries = [entry for entry in threat.entries if entry.company != primary_company]
+        selected_entries.sort(key=lambda item: (threat_rank(item.threat_level), item.technology), reverse=True)
+        takeaways: List[str] = []
+        for entry in selected_entries[:3]:
+            citation = self._citation(entry.supporting_evidence[0]) if entry.supporting_evidence else ""
+            takeaways.append(
+                "%s의 %s는 %s 위협으로 분류되며, %s %s"
+                % (
+                    entry.company,
+                    entry.technology,
+                    entry.threat_level,
+                    self._shorten(entry.rationale, 110),
+                    citation,
+                )
+            )
+        return takeaways
+
     def _strategy_table(self, strategy) -> List[str]:
         lines = [
             "| 기술 | 우선순위 | 연계 위협 수준 | 실행 전략 |",
@@ -743,18 +815,42 @@ class ReportWriterAgent(BaseWorkflowAgent):
         for item in strategy.recommendations:
             lines.append(
                 "| %s | %s | %s | %s |"
-                % (item.technology, item.priority, item.linked_threat_level, self._shorten(item.recommendation, 100))
+                % (item.technology, item.priority, item.linked_threat_level, self._table_text(item.recommendation))
             )
         return lines
 
-    # CHANGED: 동적 모델/기존 모델 양쪽 모두에서 안전하게 필드를 읽는다.
+    def _strategy_action_plan(self, strategy) -> List[str]:
+        actions: List[str] = []
+        for item in strategy.recommendations[:3]:
+            actions.append(
+                "%s는 %s 우선순위로 %s. 판단 배경은 %s"
+                % (
+                    item.technology,
+                    item.priority,
+                    self._shorten(item.recommendation, 90),
+                    self._shorten(item.rationale, 90),
+                )
+            )
+        return actions
+
+    def _primary_company(self, state: AgentState) -> str:
+        companies = state.get("selected_companies", []) or state.get("candidate_companies", [])
+        for company in companies:
+            if company.lower().replace(" ", "") in {"skhynix", "sk하이닉스"}:
+                return company
+        return companies[0] if companies else "SK hynix"
+
+    def _comparison_companies(self, state: AgentState) -> List[str]:
+        primary_company = self._primary_company(state)
+        companies = state.get("selected_companies", []) or state.get("candidate_companies", [])
+        return [company for company in companies if company != primary_company]
+
     def _safe_getattr(self, entry: object, field_name: str, default: str) -> str:
         value = getattr(entry, field_name, default)
         return value if value else default
 
-    # CHANGED: 표 셀 길이를 제한해 보고서 가독성을 유지한다.
+    def _table_text(self, text: str) -> str:
+        return " ".join((text or "").replace("|", "/").split())
+
     def _shorten(self, text: str, limit: int) -> str:
-        normalized = " ".join((text or "").split())
-        if len(normalized) <= limit:
-            return normalized
-        return normalized[: limit - 3] + "..."
+        return " ".join((text or "").split())

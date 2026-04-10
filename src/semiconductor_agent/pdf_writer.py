@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import re
+import textwrap
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
@@ -113,7 +114,7 @@ def _build_content_stream(lines: List[Tuple[str, str]], page_index: int, page_co
     stream_lines.append("BT")
     stream_lines.append("/F2 15 Tf")
     stream_lines.append("1 1 1 rg")
-    stream_lines.append("1 0 0 1 52 746 Tm (Semiconductor Strategy Report) Tj")
+    stream_lines.append("1 0 0 1 52 746 Tm (SK hynix Technology Strategy Report) Tj")
     stream_lines.append("ET")
     y_position = 705
 
@@ -127,7 +128,7 @@ def _build_content_stream(lines: List[Tuple[str, str]], page_index: int, page_co
         stream_lines.append("BT")
         stream_lines.append("/%s %s Tf" % (font, size))
         stream_lines.append("%s rg" % color)
-        stream_lines.append("1 0 0 1 %d %d Tm (%s) Tj" % (indent, y_position, escaped[:118]))
+        stream_lines.append("1 0 0 1 %d %d Tm (%s) Tj" % (indent, y_position, escaped))
         stream_lines.append("ET")
         if line_type == "h1":
             y_position -= 24
@@ -153,7 +154,9 @@ def _prepare_lines(lines: List[str]) -> List[Tuple[str, str]]:
     prepared = []
     for raw in lines:
         line_type = _classify_line(raw)
-        prepared.append((raw, line_type))
+        wrapped = _wrap_pdf_line(raw, line_type)
+        for chunk in wrapped:
+            prepared.append((chunk, line_type))
     return prepared
 
 
@@ -190,6 +193,29 @@ def _style_for_line(line: str, line_type: str) -> Tuple[str, int, str, int]:
     if line_type == "html":
         return ("F1", 10, "0.20 0.26 0.34", 52)
     return ("F1", 10, "0.17 0.19 0.24", 50)
+
+
+def _wrap_pdf_line(line: str, line_type: str) -> List[str]:
+    stripped = line.rstrip()
+    if not stripped:
+        return [line]
+    width_map = {
+        "h1": 46,
+        "h2": 58,
+        "h3": 66,
+        "table": 82,
+        "bullet": 78,
+        "body": 82,
+        "html": 82,
+    }
+    width = width_map.get(line_type, 82)
+    wrapped = textwrap.wrap(
+        stripped,
+        width=width,
+        break_long_words=True,
+        break_on_hyphens=False,
+    )
+    return wrapped or [stripped]
 
 
 def _strip_html(text: str) -> str:
