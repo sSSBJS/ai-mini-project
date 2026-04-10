@@ -32,6 +32,10 @@ def merge_validation_issues(
     return list(current) + list(update)
 
 
+def merge_search_count(current: int, update: int) -> int:
+    return current + update
+
+
 class AgentState(TypedDict, total=False):
     user_query: str
     output_dir: str
@@ -41,7 +45,7 @@ class AgentState(TypedDict, total=False):
     internal_baseline: Dict[str, int]
     shared_standards: Dict[str, object]
     search_budget_limit: int
-    search_count: int
+    search_count: Annotated[int, merge_search_count]
     retry_limits: Dict[str, int]
     retry_counts: Dict[str, int]
     approvals: Dict[str, bool]

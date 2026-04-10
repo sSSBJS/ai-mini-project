@@ -30,7 +30,11 @@ class BaseWorkflowAgent:
         return merged
 
     def _increment_search_count(self, state: AgentState, amount: int) -> int:
-        return min(state.get("search_budget_limit", 5), state.get("search_count", 0) + amount)
+        remaining_budget = max(
+            0,
+            state.get("search_budget_limit", 5) - state.get("search_count", 0),
+        )
+        return min(remaining_budget, max(0, amount))
 
     def _freshness_note(self, evidence: Sequence[EvidenceItem]) -> str:
         dated = [item for item in evidence if item.published_at]

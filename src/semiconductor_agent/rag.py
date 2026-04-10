@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 from collections import Counter, defaultdict
 from datetime import date
@@ -78,14 +79,17 @@ class BM25Retriever:
 
 
 class E5CompatibleDenseRetriever:
-    def __init__(self, chunks: Sequence[ChunkRecord], model_name: str):
+    def __init__(self, chunks: Sequence[ChunkRecord], model_name: str, device: str = "cpu"):
         self.chunks = list(chunks)
         self.model_name = model_name
+        self.device = device
         self.model = None
         self.chunk_vectors = []
         if SentenceTransformer is not None:
             try:
-                self.model = SentenceTransformer(model_name)
+                os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+                os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+                self.model = SentenceTransformer(model_name, device=device)
                 self.chunk_vectors = self.model.encode(
                     [self._query_instruction(chunk.text, is_query=False) for chunk in self.chunks],
                     normalize_embeddings=True,
@@ -131,9 +135,9 @@ class E5CompatibleDenseRetriever:
 
 
 class HybridRetriever:
-    def __init__(self, chunks: Sequence[ChunkRecord], model_name: str):
+    def __init__(self, chunks: Sequence[ChunkRecord], model_name: str, device: str = "cpu"):
         self.chunks = list(chunks)
-        self.dense = E5CompatibleDenseRetriever(chunks, model_name=model_name)
+        self.dense = E5CompatibleDenseRetriever(chunks, model_name=model_name, device=device)
         self.bm25 = BM25Retriever(chunks)
 
     def search(self, query: str, top_k: int = 4) -> List[EvidenceItem]:
@@ -175,6 +179,7 @@ class CorpusRegistry:
             self._retrievers[corpus_name] = HybridRetriever(
                 chunks,
                 model_name=self.runtime.embedding_model_name,
+                device=self.runtime.embedding_device,
             )
         return self._retrievers[corpus_name]
 
