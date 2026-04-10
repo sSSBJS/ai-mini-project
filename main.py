@@ -16,6 +16,20 @@ from semiconductor_agent.runtime import RuntimeConfig
 from semiconductor_agent.workflow.builder import build_agent_graph, create_default_state
 
 
+def _to_jsonable(value):
+    if hasattr(value, "model_dump"):
+        return _to_jsonable(value.model_dump(mode="json"))
+    if isinstance(value, dict):
+        return {str(k): _to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run the semiconductor strategy analysis workflow",
@@ -96,13 +110,7 @@ Examples:
         # Save results
         output_file = output_dir / "workflow_result.json"
         with open(output_file, "w", encoding="utf-8") as f:
-            # Convert non-serializable objects to strings
-            serializable_result = {}
-            for k, v in result.items():
-                if isinstance(v, (dict, list, str, int, float, bool, type(None))):
-                    serializable_result[k] = v
-                else:
-                    serializable_result[k] = str(v)
+            serializable_result = _to_jsonable(result)
             json.dump(serializable_result, f, ensure_ascii=False, indent=2)
         
         print(f"\n{'=' * 60}")

@@ -87,7 +87,7 @@ DEFAULT_CANDIDATE_COMPANIES = [
     "NVIDIA",
 ]
 REPORT_SECTION_SEQUENCE = [
-    "SUMMARY",
+    "OVERVIEW",
     "분석 배경",
     "핵심 기술 현황",
     "TRL 기반 기술 성숙도 분석",

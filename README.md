@@ -1,80 +1,230 @@
-# Semiconductor LangGraph Agent
+# Semiconductor Strategy Workflow
 
-PDF 설계 문서의 구조를 그대로 옮긴 LangGraph 워크플로우입니다.
+반도체 기술 전략 분석을 위한 LangGraph 기반 멀티 에이전트 워크플로우입니다.  
+시장 조사, 기술 조사, 특허/혁신 신호, TRL 판정, 위협 평가, 전략 수립, 보고서 생성을 하나의 그래프로 연결해 실행합니다.
 
-구현 범위
+## 개요
 
-- 상단 아키텍처의 7개 Agent를 그대로 그래프 노드로 구성
-- `Supervisor Agent` 중심의 중앙집중형 라우팅과 승인/반려
-- `Technique Research Collector Agent` 내부의 `Evidence Validation Node`
-- `Strategy Planner Agent` 내부의 `Strategy Validate Node`
-- `Report Writer Agent` 내부의 `Report Validate Node`, `Formatting Node - PDF Generator`
-- `reference/research`, `reference/trl`를 사용하는 Hybrid RAG
-- PDF의 `SHARED_STANDARDS` 기반 TRL 판정 규칙
+이 프로젝트는 다음 흐름을 자동화합니다.
 
-구조
+- 시장 조사와 기술 조사를 병렬로 수행
+- 특허 및 혁신 신호를 수집
+- TRL(Technology Readiness Level)을 판정
+- 경쟁 위협 수준을 평가
+- 기술별 전략을 도출
+- Markdown, HTML, PDF 보고서를 생성
 
-- `src/semiconductor_agent/agents.py`: 호환용 얇은 export 레이어
-- `src/semiconductor_agent/agent_nodes/base.py`: 공통 의존성, 공통 helper
-- `src/semiconductor_agent/agent_nodes/market.py`: 시장/경쟁사 조사
-- `src/semiconductor_agent/agent_nodes/technique.py`: 기술 조사 + Evidence Validation Node
-- `src/semiconductor_agent/agent_nodes/patent.py`: 특허/혁신 신호
-- `src/semiconductor_agent/agent_nodes/trl.py`: TRL 판정
-- `src/semiconductor_agent/agent_nodes/threat.py`: 위협 평가
-- `src/semiconductor_agent/agent_nodes/strategy.py`: 전략 수립 + Strategy Validate Node
-- `src/semiconductor_agent/agent_nodes/report.py`: 보고서 작성 + Report Validate Node + PDF 생성
-- `src/semiconductor_agent/agent_nodes/supervisor.py`: 중앙집중형 Supervisor
+보고서 결과물은 기본적으로 `outputs/` 아래에 생성됩니다.
 
-환경 변수
+- `semiconductor_strategy_report.md`
+- `semiconductor_strategy_report.html`
+- `semiconductor_strategy_report.pdf`
+- `workflow_result.json`
 
-- 루트의 [.env.example](/Users/jisung/Documents/skala/ai-service/ai-mini-project/.env.example)를 복사해 `.env`로 사용하면 됩니다.
-- `RuntimeConfig.from_env(...)`는 루트의 `.env`를 자동으로 읽습니다.
-- 기본 실행만 할 경우 `OPENAI_API_KEY` 없이도 동작합니다.
-- `OPENAI_API_KEY`는 `USE_LLM_PLANNING=true` 또는 OpenAI 기반 planning을 쓸 때 필요합니다.
-- LangSmith 추적은 `.env`에 `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY=...`를 넣으면 바로 활성화됩니다.
-- `LANGSMITH_PROJECT`로 프로젝트 이름을 지정할 수 있습니다.
-- `USE_LLM_SUPERVISOR_REVIEW=true`이면 Supervisor가 각 단계 산출물을 LLM으로 다시 검토합니다. API 키가 없으면 규칙 기반 검토로 자동 fallback 됩니다.
-- `ENABLE_DENSE_RAG=false`가 기본값입니다. CPU 환경에서 대형 임베딩 모델 로딩으로 시작 단계가 멈추는 현상을 피하기 위해 기본적으로 BM25 기반 RAG만 사용합니다.
-- dense retrieval이 꼭 필요하면 `.env`에 `ENABLE_DENSE_RAG=true`를 넣어 명시적으로 켜면 됩니다.
+## 그래프 아키텍처
 
-실행 예시
+구현 기준 그래프는 [`workflow/builder.py`](/Users/jin/workspace/ai_mini_pj/ai-mini-project/src/semiconductor_agent/workflow/builder.py), [`workflow/team.py`](/Users/jin/workspace/ai_mini_pj/ai-mini-project/src/semiconductor_agent/workflow/team.py) 에 정의되어 있습니다.
 
-```bash
-PYTHONPATH=src python3 - <<'PY'
-from pathlib import Path
-from semiconductor_agent.graph import build_agent_graph
-from semiconductor_agent.runtime import RuntimeConfig
-from semiconductor_agent.state import create_initial_state
+```mermaid
+flowchart TD
+    START["START"]
+    MR["market_research"]
+    TR["technique_research"]
+    RS["research_sync"]
+    SV["supervisor"]
+    PI["patent_innovation_signal"]
+    TA["trl_assessment"]
+    TH["threat_evaluation"]
+    SP["strategy_planner"]
+    RW["report_writer"]
+    END["END"]
 
-runtime = RuntimeConfig.from_env(Path('.').resolve())
-graph = build_agent_graph(runtime)
-state = create_initial_state(
-    'HBM4, PIM, CXL 기술 전략 분석 보고서를 생성한다.',
-    output_dir=runtime.output_dir,
-)
-result = graph.invoke(state)
-print(result["report_artifact"].markdown_path)
-print(result["report_artifact"].pdf_path)
-PY
+    START --> MR
+    START --> TR
+    MR --> RS
+    TR --> RS
+    RS --> SV
+
+    SV --> PI
+    SV --> TA
+    SV --> TH
+    SV --> SP
+    SV --> RW
+    SV --> END
+
+    PI --> SV
+    TA --> SV
+    TH --> SV
+    SP --> SV
+    RW --> SV
 ```
 
-검증
+### 노드 설명
+
+- `market_research`
+  - 시장/경쟁사/사업화 리스크를 조사합니다.
+  - 현재 구현은 웹 조사 비중을 높여 `웹 70% / RAG 30%` 수준으로 evidence를 구성합니다.
+- `technique_research`
+  - 기술 원리, 병목, 표준, 위험 요소를 조사합니다.
+  - 마찬가지로 `웹 70% / RAG 30%` 비중으로 evidence를 구성합니다.
+- `research_sync`
+  - 병렬 조사 두 갈래가 끝난 뒤 supervisor로 합류시키는 동기화 노드입니다.
+- `supervisor`
+  - 현재 단계 산출물을 검토하고 다음 노드를 라우팅합니다.
+  - 필요 시 재시도 흐름도 제어합니다.
+- `patent_innovation_signal`
+  - 특허, 논문, 웹 신호를 바탕으로 간접 혁신 신호를 정리합니다.
+- `trl_assessment`
+  - 시장/기술/특허 신호와 내부 TRL 규칙을 바탕으로 TRL을 판정합니다.
+  - OpenAI 사용 시 회사-기술 조합별 LLM 판정을 병렬 실행할 수 있습니다.
+- `threat_evaluation`
+  - TRL 결과와 특허/생태계 신호를 바탕으로 위협 수준을 평가합니다.
+  - OpenAI API 키가 있으면 LLM 기반 평가를 사용하고, 없으면 규칙 기반으로 fallback 됩니다.
+- `strategy_planner`
+  - 기술별 우선순위와 실행 전략을 도출합니다.
+  - OpenAI API 키가 있으면 LLM 기반 전략 생성을 사용하고, 없으면 규칙 기반으로 fallback 됩니다.
+- `report_writer`
+  - 최종 보고서를 Markdown/HTML/PDF로 생성합니다.
+  - 보고서는 `OVERVIEW` 섹션으로 시작합니다.
+
+## 디렉터리 구조
+
+```text
+.
+├── main.py
+├── run.sh
+├── requirements.txt
+├── pyproject.toml
+├── reference/
+│   ├── research/
+│   └── trl/
+├── src/semiconductor_agent/
+│   ├── agent_nodes/
+│   │   ├── market.py
+│   │   ├── technique.py
+│   │   ├── patent.py
+│   │   ├── trl.py
+│   │   ├── threat.py
+│   │   ├── strategy.py
+│   │   ├── report.py
+│   │   └── supervisor.py
+│   ├── workflow/
+│   │   ├── builder.py
+│   │   ├── team.py
+│   │   ├── dependencies.py
+│   │   └── review.py
+│   ├── rag.py
+│   ├── search.py
+│   ├── runtime.py
+│   ├── state.py
+│   └── shared_standards.py
+└── tests/
+```
+
+## 설치
+
+Python 3.9 이상을 권장합니다.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+`langgraph`, `langchain-openai`, `pydantic`, `pypdf`, `sentence-transformers`가 기본 의존성입니다.
+
+## 실행 방법
+
+### 1. 빠른 실행
+
+```bash
+./run.sh
+```
+
+질문을 직접 넘기려면:
+
+```bash
+./run.sh "HBM4, PIM, CXL 기술 전략을 분석해줘"
+```
+
+### 2. Python 엔트리포인트 실행
+
+```bash
+PYTHONPATH=src python3 main.py --query "HBM4, PIM, CXL 기술 전략을 분석해줘"
+```
+
+출력 디렉터리를 직접 지정하려면:
+
+```bash
+PYTHONPATH=src python3 main.py \
+  --query "HBM4, PIM, CXL 기술 전략을 분석해줘" \
+  --output ./outputs/custom_run
+```
+
+자세한 에러 로그를 보려면:
+
+```bash
+PYTHONPATH=src python3 main.py --query "HBM4 분석" --verbose
+```
+
+## 환경 변수
+
+환경 변수는 프로젝트 루트의 `.env` 파일에 둘 수 있고, [`runtime.py`](/Users/jin/workspace/ai_mini_pj/ai-mini-project/src/semiconductor_agent/runtime.py)에서 자동으로 읽습니다.
+
+### 주요 옵션
+
+- `OPENAI_API_KEY`
+  - OpenAI 기반 TRL, threat, strategy, supervisor review를 사용할 때 필요합니다.
+- `OPENAI_MODEL`
+  - 기본값은 `gpt-4o-mini`
+- `ENABLE_WEB_SEARCH`
+  - `true`로 설정하면 웹 검색을 사용합니다.
+- `ENABLE_DENSE_RAG`
+  - 기본값은 `false`
+  - CPU 환경에서 무거운 임베딩 모델 로딩을 피하기 위해 기본적으로 dense RAG는 꺼져 있습니다.
+- `USE_LLM_PLANNING`
+  - 검색 계획 생성에 LLM을 사용할지 제어합니다.
+- `USE_LLM_SUPERVISOR_REVIEW`
+  - supervisor의 LLM 기반 리뷰 사용 여부를 제어합니다.
+- `OUTPUT_DIR`
+  - 기본 출력 경로를 바꿉니다.
+- `RESEARCH_REFERENCE_DIR`
+  - `reference/research` 대신 다른 연구 자료 디렉터리를 사용합니다.
+- `TRL_REFERENCE_DIR`
+  - `reference/trl` 대신 다른 TRL 자료 디렉터리를 사용합니다.
+- `TRL_LLM_MAX_WORKERS`
+  - TRL LLM 병렬 판정 시 최대 worker 수를 제어합니다.
+
+예시:
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+ENABLE_WEB_SEARCH=true
+ENABLE_DENSE_RAG=false
+USE_LLM_SUPERVISOR_REVIEW=true
+TRL_LLM_MAX_WORKERS=4
+```
+
+## RAG / 검색 동작
+
+- `reference/research`: 기술/시장 관련 내부 PDF 자료
+- `reference/trl`: TRL 판정 보조 자료
+- 기본 dense RAG는 꺼져 있고, BM25 기반 검색이 기본입니다.
+- 웹 검색이 활성화되면 시장 조사와 기술 조사에서 웹 비중을 더 높게 반영합니다.
+
+## 테스트
+
+기본 테스트 실행:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
-LangSmith 사용 예시
+설치가 안 된 의존성이 있으면 import 단계에서 실패할 수 있습니다. 먼저 `pip install -r requirements.txt`를 마친 뒤 실행하는 것을 권장합니다.
 
-```bash
-cp .env.example .env
-```
+## 참고 사항
 
-`.env`에서 아래 값만 채우면 LangGraph/LangChain 실행이 LangSmith에 추적됩니다.
-
-```env
-OPENAI_API_KEY=...
-LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=...
-LANGSMITH_PROJECT=semiconductor-langgraph-agent
-```
+- OpenAI API 키가 없어도 fallback 로직으로 대부분의 워크플로우는 실행되도록 설계되어 있습니다.
+- 다만 `ENABLE_WEB_SEARCH`, OpenAI 기반 판단, 외부 API 기반 특허/검색 품질은 환경 변수 설정 여부에 영향을 받습니다.
+- 현재 보고서는 `OVERVIEW`로 시작하며, 전략 요약이 상단에 함께 들어갑니다.

@@ -137,6 +137,8 @@ def build_technique_research_blueprint(
 
 class TechniqueResearchCollectorAgent(BaseWorkflowAgent):
     agent_key = "technique_research"
+    _TARGET_EVIDENCE_PER_TECH = 10
+    _WEB_SHARE = 0.7
 
     def run(self, state: AgentState) -> Dict[str, object]:
         technologies = state.get("target_technologies", [])
@@ -147,14 +149,18 @@ class TechniqueResearchCollectorAgent(BaseWorkflowAgent):
         external_results_used = False
 
         for technology in technologies:
-            evidence = self._collect_internal_rag_evidence(technology, blueprint)
-            for item in evidence:
+            rag_evidence = self._collect_internal_rag_evidence(technology, blueprint)
+            for item in rag_evidence:
                 item.technology = technology
 
             web_evidence = self._collect_external_evidence(state, technology)
             if web_evidence:
                 external_results_used = True
-                evidence.extend(web_evidence)
+            evidence = self._blend_evidence(
+                rag_evidence=rag_evidence,
+                web_evidence=web_evidence,
+                total_target=self._TARGET_EVIDENCE_PER_TECH,
+            )
 
             brief = TechnologyBrief(
                 technology=technology,
@@ -249,8 +255,8 @@ class TechniqueResearchCollectorAgent(BaseWorkflowAgent):
             verification_questions=["반대 근거가 존재하는가."],
             deliverable="%s 기술 리스크" % technology,
         )
-        results: List[SearchResult] = self.dependencies.web_search.search_task(paper_task, max_results_per_query=2)
-        results.extend(self.dependencies.web_search.search_task(risk_task, max_results_per_query=1))
+        results: List[SearchResult] = self.dependencies.web_search.search_task(paper_task, max_results_per_query=4)
+        results.extend(self.dependencies.web_search.search_task(risk_task, max_results_per_query=3))
         verification = self.dependencies.web_search.verify_handoff(
             results,
             required_source_types=("paper",),
@@ -280,6 +286,22 @@ class TechniqueResearchCollectorAgent(BaseWorkflowAgent):
                 )
             )
         return evidence
+
+    def _blend_evidence(
+        self,
+        rag_evidence: Sequence[EvidenceItem],
+        web_evidence: Sequence[EvidenceItem],
+        total_target: int,
+    ) -> List[EvidenceItem]:
+        web_target = max(1, int(round(total_target * self._WEB_SHARE)))
+        rag_target = max(1, total_target - web_target)
+        blended = list(web_evidence[:web_target])
+        blended.extend(rag_evidence[:rag_target])
+        if len(blended) < total_target:
+            blended.extend(web_evidence[web_target:total_target])
+        if len(blended) < total_target:
+            blended.extend(rag_evidence[rag_target:total_target])
+        return self._deduplicate_evidence(blended)[:total_target]
 
     def _deduplicate_evidence(self, evidence: Sequence[EvidenceItem]) -> List[EvidenceItem]:
         deduped = []

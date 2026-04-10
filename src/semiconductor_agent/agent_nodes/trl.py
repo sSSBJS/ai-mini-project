@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 from typing import Dict, List, Optional, Sequence
@@ -41,7 +42,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         patent_signals = state.get("patent_innovation_signal")
         standards = state.get("shared_standards", {})
         rulebase = standards.get("trl_evidence_rules", {})
-        entries = []
+        jobs = []
         self.last_run_debug = {
             "llm_enabled": self.llm_enabled,
             "llm_success_count": 0,
@@ -51,16 +52,17 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         for technology in state.get("target_technologies", []):
             tech_brief = techniques.technology_briefs.get(technology) if techniques else None
             for company in companies:
-                entries.append(
-                    self._assess_entry(
-                        company=company,
-                        technology=technology,
-                        market=market,
-                        tech_brief=tech_brief,
-                        patent_signals=patent_signals.entries if patent_signals else [],
-                        shared_rulebase=rulebase,
-                    )
+                jobs.append(
+                    {
+                        "company": company,
+                        "technology": technology,
+                        "market": market,
+                        "tech_brief": tech_brief,
+                        "patent_signals": patent_signals.entries if patent_signals else [],
+                        "shared_rulebase": rulebase,
+                    }
                 )
+        entries = self._run_assessments(jobs)
 
         return {
             "trl_assessment": TRLAssessmentResult(
@@ -69,6 +71,27 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
             ),
             "last_completed_step": self.agent_key,
         }
+
+    def _run_assessments(self, jobs: Sequence[Dict[str, object]]) -> List[TRLAssessmentEntry]:
+        if not jobs:
+            return []
+        if not self.llm_enabled or len(jobs) == 1:
+            return [self._assess_entry(**job) for job in jobs]
+
+        max_workers = self._resolve_max_workers(len(jobs))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            return list(executor.map(self._assess_job, jobs))
+
+    def _assess_job(self, job: Dict[str, object]) -> TRLAssessmentEntry:
+        return self._assess_entry(**job)
+
+    def _resolve_max_workers(self, job_count: int) -> int:
+        raw = os.getenv("TRL_LLM_MAX_WORKERS", "4").strip()
+        try:
+            configured = int(raw)
+        except ValueError:
+            configured = 4
+        return max(1, min(job_count, configured))
 
     def _assess_entry(
         self,
@@ -252,7 +275,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
             "technique_research": self._serialize_tech_brief(tech_brief),
             "patent_innovation_signal": self._serialize_patent_signals(patent_signals),
             "trl_rulebase": shared_rulebase,
-            "external_trl_rag": self._serialize_evidence_bundle(trl_context, evidence_map, prefix="R"),
+            "external_trl_rag": self._serialize_evidence_refs(trl_context, evidence_map, prefix="R"),
             "evidence_catalog": self._serialize_full_evidence_catalog(evidence_map),
         }
         return (
@@ -410,7 +433,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
         return evidence_map
 
     def _serialize_market_evidence(self, market_evidence: Sequence[EvidenceItem]) -> Sequence[Dict[str, object]]:
-        return self._serialize_evidence_bundle(
+        return self._serialize_evidence_refs(
             market_evidence[:3],
             self._build_simple_evidence_map("M", market_evidence[:3]),
             prefix="M",
@@ -426,7 +449,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
             "key_points": tech_brief.key_points[:3],
             "core_claims": tech_brief.core_claims[:3],
             "freshness_note": tech_brief.freshness_note,
-            "evidence": self._serialize_evidence_bundle(
+            "evidence": self._serialize_evidence_refs(
                 items,
                 self._build_simple_evidence_map("T", items),
                 prefix="T",
@@ -442,7 +465,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
                     "signal_summary": entry.signal_summary,
                     "confidence": entry.confidence,
                     "estimated": entry.estimated,
-                    "evidence": self._serialize_evidence_bundle(
+                    "evidence": self._serialize_evidence_refs(
                         items,
                         self._build_simple_evidence_map("P", items),
                         prefix="P",
@@ -451,18 +474,24 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
             )
         return payload
 
-    def _serialize_evidence_bundle(
+    def _serialize_evidence_refs(
         self,
         items: Sequence[EvidenceItem],
         evidence_map: Dict[str, EvidenceItem],
         prefix: str,
     ) -> Sequence[Dict[str, object]]:
-        serialized = []
+        refs = []
         for index, item in enumerate(items, start=1):
             evidence_id = "%s%s" % (prefix, index)
             mapped = evidence_map.get(evidence_id, item)
-            serialized.append(self._serialize_evidence_item(evidence_id, mapped))
-        return serialized
+            refs.append(
+                {
+                    "id": evidence_id,
+                    "title": mapped.title,
+                    "source_type": mapped.source_type,
+                }
+            )
+        return refs
 
     def _serialize_full_evidence_catalog(self, evidence_map: Dict[str, EvidenceItem]) -> Sequence[Dict[str, object]]:
         return [self._serialize_evidence_item(evidence_id, item) for evidence_id, item in evidence_map.items()]
@@ -472,10 +501,7 @@ class TRLAssessmentAgent(BaseWorkflowAgent):
             "id": evidence_id,
             "title": item.title,
             "source_type": item.source_type,
-            "source_path": item.source_path,
-            "published_at": item.published_at.isoformat() if item.published_at else None,
-            "content": item.content[:320],
-            "citation": self._citation(item),
+            "content": item.content,
             "confidence": item.confidence,
             "estimated": item.estimated,
         }

@@ -77,26 +77,20 @@ class ReportWriterAgent(BaseWorkflowAgent):
                     highest_threat_by_technology[entry.technology] = entry
 
         lines = []
-        # CHANGED: 마크다운 미리보기에서 더 보기 좋게 상단 커버와 디자인 토큰을 추가.
-        lines.extend(self._report_cover_block(state, retry_round, validation_feedback or []))
-        # CHANGED: 임원용 요약을 표 중심으로 재구성하고 위협/전략/TRL을 한눈에 보도록 정리.
-        lines.append("# SUMMARY")
-        lines.append("임원용 요약: 핵심기술의 현재 위치, 주요 기업, 위협 수준, 전략 방향을 한눈에 파악할 수 있도록 정리한다.")
-        if retry_round > 0:
-            lines.append("보고서 품질 보강 라운드 %d: 근거율, 신선도율, 완결율, 불확실율을 재점검해 재출력했다." % retry_round)
-            for feedback in (validation_feedback or [])[:4]:
-                lines.append("- 품질 보강 포인트: %s" % feedback)
+        lines.append("# OVERVIEW")
+        lines.append("핵심기술의 현재 위치, 주요 기업, 위협 수준, 전략 방향을 한눈에 파악할 수 있도록 정리한다.")
+        overview_summary = self._overview_strategy_summary(strategy, highest_threat_by_technology)
+        if overview_summary:
+            lines.append(overview_summary)
         lines.append("")
         lines.extend(self._executive_summary_table(state, highest_threat_by_technology))
 
         lines.append("")
-        lines.append(self._section_divider("분석 배경"))
         lines.append("# 분석 배경")
         lines.append(state.get("user_query", ""))
         lines.append("시장·기술·특허·혁신 신호·TRL·위협 수준·전략 제안을 하나의 흐름으로 통합 해석한다.")
 
         lines.append("")
-        lines.append(self._section_divider("핵심 기술 현황"))
         lines.append("# 핵심 기술 현황")
         if market:
             # CHANGED: 시장 및 기업 분석 섹션을 표 중심으로 재구성.
@@ -154,7 +148,6 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 )
 
         lines.append("")
-        lines.append(self._section_divider("TRL 기반 기술 성숙도 분석"))
         lines.append("# TRL 기반 기술 성숙도 분석")
         if trl:
             # CHANGED: TRL 결과를 표로 먼저 요약하고 근거를 이어서 제공.
@@ -176,7 +169,6 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 )
 
         lines.append("")
-        lines.append(self._section_divider("경쟁 위협 수준 평가"))
         lines.append("# 경쟁 위협 수준 평가")
         if threat:
             # CHANGED: Threat Evaluation 결과를 표 형식으로 정리.
@@ -189,7 +181,6 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 )
 
         lines.append("")
-        lines.append(self._section_divider("전략적 방향 및 대응제안"))
         lines.append("# 전략적 방향 및 대응제안")
         if strategy:
             # CHANGED: Strategy Recommendation을 실행 가능한 액션 중심의 표로 제공.
@@ -210,7 +201,6 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 lines.append("  rationale: %s" % recommendation.rationale)
 
         lines.append("")
-        lines.append(self._section_divider("Evidence & References"))
         lines.append("# REFERENCE")
         lines.append("## Evidence & References")
         references = self._collect_references(state)
@@ -228,21 +218,6 @@ class ReportWriterAgent(BaseWorkflowAgent):
         issues: List[ValidationIssue],
     ) -> str:
         sections = self._split_markdown_sections(markdown)
-        issue_items = "".join(
-            '<li><strong>%s</strong>: %s</li>' % (html.escape(issue.scope), html.escape(issue.message))
-            for issue in issues
-        ) or "<li>특이 이슈 없음</li>"
-        metric_cards = [
-            ("근거율", "%.2f" % metrics.evidence_rate),
-            ("신선도율", "%.2f" % metrics.freshness_rate),
-            ("완결율", "%.2f" % metrics.completeness_rate),
-            ("불확실율", "%.2f" % metrics.uncertainty_rate),
-        ]
-        metric_html = "".join(
-            '<div class="metric-card"><div class="metric-label">%s</div><div class="metric-value">%s</div></div>'
-            % (label, value)
-            for label, value in metric_cards
-        )
         section_html = "".join(
             '<section class="report-section"><h2>%s</h2>%s</section>'
             % (html.escape(title), self._render_markdown_block_to_html(body_lines))
@@ -319,41 +294,6 @@ class ReportWriterAgent(BaseWorkflowAgent):
       font-size: 12px;
       color: var(--brand);
     }
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin: 18px 0 14px;
-    }
-    .metric-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 14px 16px;
-    }
-    .metric-label {
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 6px;
-    }
-    .metric-value {
-      font-size: 24px;
-      font-weight: 800;
-      color: var(--brand);
-    }
-    .issue-box {
-      background: var(--warn-soft);
-      border: 1px solid #f3d4a5;
-      border-left: 4px solid #f59e0b;
-      border-radius: 14px;
-      padding: 14px 16px;
-      margin-bottom: 16px;
-    }
-    .issue-box h3 {
-      margin: 0 0 8px 0;
-      color: var(--warn);
-      font-size: 15px;
-    }
     .report-section {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -420,7 +360,6 @@ class ReportWriterAgent(BaseWorkflowAgent):
       margin: 18px 0 14px;
     }
     @media (max-width: 840px) {
-      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .wrap { width: min(100vw - 24px, 1100px); }
       .hero { padding: 20px 18px; }
       h1 { font-size: 28px; }
@@ -438,14 +377,8 @@ class ReportWriterAgent(BaseWorkflowAgent):
       <div class="badges">
         <span class="badge">대상 기술: __TECHNOLOGIES__</span>
         <span class="badge">주요 기업: __COMPANIES__</span>
-        <span class="badge">통과 기준: __PASSED__ / __TOTAL__</span>
       </div>
     </header>
-    <section class="metrics">__METRIC_HTML__</section>
-    <section class="issue-box">
-      <h3>Validation Review</h3>
-      <ul>__ISSUE_ITEMS__</ul>
-    </section>
     __SECTION_HTML__
   </div>
 </body>
@@ -454,10 +387,6 @@ class ReportWriterAgent(BaseWorkflowAgent):
         return (
             template.replace("__TECHNOLOGIES__", html.escape(technologies))
             .replace("__COMPANIES__", html.escape(companies))
-            .replace("__PASSED__", str(metrics.passed_criteria))
-            .replace("__TOTAL__", str(metrics.total_criteria))
-            .replace("__METRIC_HTML__", metric_html)
-            .replace("__ISSUE_ITEMS__", issue_items)
             .replace("__SECTION_HTML__", section_html)
         )
 
@@ -697,35 +626,23 @@ class ReportWriterAgent(BaseWorkflowAgent):
         has_blocking_issue = any(issue.blocking for issue in issues if issue.scope == "Report Validate Node")
         return has_blocking_issue and retry_round < self._MAX_REPORT_RETRIES
 
-    # CHANGED: VS Code markdown preview에서 카드형 커버처럼 보이도록 HTML 블록을 추가.
-    def _report_cover_block(self, state: AgentState, retry_round: int, validation_feedback: List[str]) -> List[str]:
-        technologies = ", ".join(state.get("target_technologies", [])[:5]) or "N/A"
-        companies = ", ".join((state.get("selected_companies", []) or state.get("candidate_companies", []))[:4]) or "N/A"
-        lines = [
-            "---",
-            "# Semiconductor Strategy Report",
-            "## AI Memory & Interconnect Intelligence Brief",
-            "> 시장·기술·특허·혁신 신호를 하나의 흐름으로 통합한 임원용 전략 보고서",
-            "",
-            "- 대상 기술: %s" % technologies,
-            "- 주요 기업: %s" % companies,
-            "- 재출력 라운드: %d" % retry_round,
-            "",
-        ]
-        if validation_feedback:
-            lines.extend(
-                [
-                    "**Quality Feedback**",
-                ]
+    def _overview_strategy_summary(self, strategy, highest_threat_by_technology: Dict[str, object]) -> str:
+        if not strategy or not strategy.recommendations:
+            return ""
+        fragments = []
+        for recommendation in strategy.recommendations[:3]:
+            threat_entry = highest_threat_by_technology.get(recommendation.technology)
+            threat_level = threat_entry.threat_level if threat_entry else recommendation.linked_threat_level
+            fragments.append(
+                "%s는 %s 위협 기준으로 %s 우선순위를 두고 %s"
+                % (
+                    recommendation.technology,
+                    threat_level,
+                    recommendation.priority,
+                    recommendation.recommendation,
+                )
             )
-            for feedback in validation_feedback[:4]:
-                lines.append("- %s" % feedback)
-            lines.append("")
-        return lines
-
-    # CHANGED: 각 대섹션 앞에 순수 마크다운 디바이더를 넣어 환경 의존 없이 구획을 강화.
-    def _section_divider(self, title: str) -> str:
-        return "---\n**%s**" % title
+        return "전략 요약: %s" % " ".join(fragments)
 
     # CHANGED: 임원용 요약 표를 생성.
     def _executive_summary_table(self, state: AgentState, highest_threat_by_technology: Dict[str, object]) -> List[str]:

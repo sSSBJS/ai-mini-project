@@ -135,6 +135,8 @@ def build_market_research_blueprint(
 
 class MarketResearchCollectorAgent(BaseWorkflowAgent):
     agent_key = "market_research"
+    _TARGET_EVIDENCE_PER_COMPANY = 10
+    _WEB_SHARE = 0.7
 
     def run(self, state: AgentState) -> Dict[str, object]:
         technologies = state.get("target_technologies", [])
@@ -142,42 +144,29 @@ class MarketResearchCollectorAgent(BaseWorkflowAgent):
         blueprint = build_market_research_blueprint(technologies, companies)
         search_plan = blueprint.search_plan
 
-        company_findings = {}
-        latest_articles = []
-        for company in companies:
-            company_evidence = []
-            for technology in technologies:
-                hits = self.dependencies.corpora.search(
-                    "research",
-                    "%s %s semiconductor market technical trend" % (company, technology),
-                    top_k=2,
-                )
-                for hit in hits:
-                    hit.company = company
-                    hit.technology = technology
-                company_evidence.extend(hits)
-            if not company_evidence:
-                fallback_hits = self.dependencies.corpora.search(
-                    "research",
-                    "%s semiconductor strategy" % company,
-                    top_k=2,
-                )
-                for hit in fallback_hits:
-                    hit.company = company
-                company_evidence.extend(fallback_hits)
-            company_findings[company] = company_evidence
-            latest_articles.extend(company_evidence[:1])
-
         web_results: List[SearchResult] = []
         verification = SearchVerificationReport(approved=True)
         if self.dependencies.runtime.enable_web_search and state.get("search_count", 0) < state.get("search_budget_limit", 5):
             for task in blueprint.tasks:
-                web_results.extend(self.dependencies.web_search.search_task(task, max_results_per_query=2))
+                web_results.extend(self.dependencies.web_search.search_task(task, max_results_per_query=4))
             verification = self.dependencies.web_search.verify_handoff(
                 web_results,
                 required_source_types=("company", "news"),
             )
-            latest_articles.extend(self._search_results_to_evidence(web_results[:3]))
+        web_evidence = self._search_results_to_evidence(web_results)
+
+        company_findings = {}
+        latest_articles = []
+        for company in companies:
+            rag_evidence = self._collect_rag_company_evidence(company, technologies)
+            company_web_evidence = self._filter_company_web_evidence(company, web_evidence)
+            company_evidence = self._blend_evidence(
+                rag_evidence=rag_evidence,
+                web_evidence=company_web_evidence,
+                total_target=self._TARGET_EVIDENCE_PER_COMPANY,
+            )
+            company_findings[company] = company_evidence
+            latest_articles.extend(company_web_evidence[:2] or company_evidence[:1])
 
         market_summary = self._compose_market_summary(
             technologies=technologies,
@@ -202,6 +191,33 @@ class MarketResearchCollectorAgent(BaseWorkflowAgent):
             "validation_issues": self.append_issues(state, issues),
         }
 
+    def _collect_rag_company_evidence(
+        self,
+        company: str,
+        technologies: Sequence[str],
+    ) -> List[EvidenceItem]:
+        company_evidence = []
+        for technology in technologies:
+            hits = self.dependencies.corpora.search(
+                "research",
+                "%s %s semiconductor market technical trend" % (company, technology),
+                top_k=2,
+            )
+            for hit in hits:
+                hit.company = company
+                hit.technology = technology
+            company_evidence.extend(hits)
+        if not company_evidence:
+            fallback_hits = self.dependencies.corpora.search(
+                "research",
+                "%s semiconductor strategy" % company,
+                top_k=2,
+            )
+            for hit in fallback_hits:
+                hit.company = company
+            company_evidence.extend(fallback_hits)
+        return self._deduplicate_evidence(company_evidence)
+
     def _search_results_to_evidence(self, results: Sequence[SearchResult]) -> List[EvidenceItem]:
         evidence = []
         for item in results:
@@ -216,6 +232,50 @@ class MarketResearchCollectorAgent(BaseWorkflowAgent):
                 )
             )
         return evidence
+
+    def _filter_company_web_evidence(
+        self,
+        company: str,
+        web_evidence: Sequence[EvidenceItem],
+    ) -> List[EvidenceItem]:
+        lowered_company = company.lower()
+        matched = []
+        fallback = []
+        for item in web_evidence:
+            haystack = " ".join([item.title, item.content, item.source_path]).lower()
+            if lowered_company in haystack:
+                item.company = company
+                matched.append(item)
+            else:
+                fallback.append(item)
+        return self._deduplicate_evidence(matched or fallback[:3])
+
+    def _blend_evidence(
+        self,
+        rag_evidence: Sequence[EvidenceItem],
+        web_evidence: Sequence[EvidenceItem],
+        total_target: int,
+    ) -> List[EvidenceItem]:
+        web_target = max(1, int(round(total_target * self._WEB_SHARE)))
+        rag_target = max(1, total_target - web_target)
+        blended = list(web_evidence[:web_target])
+        blended.extend(rag_evidence[:rag_target])
+        if len(blended) < total_target:
+            blended.extend(web_evidence[web_target:total_target])
+        if len(blended) < total_target:
+            blended.extend(rag_evidence[rag_target:total_target])
+        return self._deduplicate_evidence(blended)[:total_target]
+
+    def _deduplicate_evidence(self, evidence: Sequence[EvidenceItem]) -> List[EvidenceItem]:
+        deduped = []
+        seen = set()
+        for item in evidence:
+            key = (item.source_path, item.page, item.content[:120])
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item)
+        return deduped
 
     def _compose_market_summary(
         self,
