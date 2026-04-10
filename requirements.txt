@@ -8,6 +8,13 @@ pydantic>=2.9.0
 pypdf>=5.0.0
 cryptography>=3.1
 
-# Optional:
-# sentence-transformers improves dense retrieval quality in RAG,
-# but the current code can still run tests without it because it has a fallback path.
+# Web search / HTTP
+requests>=2.31.0
+
+# RAG / retrieval
+sentence-transformers>=3.0.0
+faiss-cpu>=1.8.0
+
+# Optional utilities
+python-dotenv>=1.0.0
+
