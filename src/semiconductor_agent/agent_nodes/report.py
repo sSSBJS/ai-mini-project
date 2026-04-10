@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import html
 from datetime import date
 from pathlib import Path
 from typing import Dict, List
 
 from semiconductor_agent.agent_nodes.base import BaseWorkflowAgent, threat_rank
 from semiconductor_agent.models import EvidenceItem, ReportArtifact, ReportValidationMetrics, ValidationIssue
-from semiconductor_agent.pdf_writer import write_simple_pdf
+from semiconductor_agent.pdf_writer import write_html_pdf, write_simple_pdf
 from semiconductor_agent.shared_standards import REPORT_SECTION_SEQUENCE
 from semiconductor_agent.state import AgentState
 
@@ -33,8 +34,15 @@ class ReportWriterAgent(BaseWorkflowAgent):
             metrics, issues = self._report_validate_node(state, markdown)
         markdown_path = output_dir / "semiconductor_strategy_report.md"
         markdown_path.write_text(markdown, encoding="utf-8")
+        # CHANGED: PDF 대신 바로 보기 좋은 HTML 결과물을 함께 생성.
+        html_path = output_dir / "semiconductor_strategy_report.html"
+        html_path.write_text(self._build_html_report(state, markdown, metrics, issues), encoding="utf-8")
 
-        pdf_path = self._formatting_node_pdf_generator(markdown, output_dir / "semiconductor_strategy_report.pdf")
+        pdf_path = self._formatting_node_pdf_generator(
+            markdown,
+            html_path,
+            output_dir / "semiconductor_strategy_report.pdf",
+        )
 
         artifact = ReportArtifact(
             markdown=markdown,
@@ -69,6 +77,8 @@ class ReportWriterAgent(BaseWorkflowAgent):
                     highest_threat_by_technology[entry.technology] = entry
 
         lines = []
+        # CHANGED: 마크다운 미리보기에서 더 보기 좋게 상단 커버와 디자인 토큰을 추가.
+        lines.extend(self._report_cover_block(state, retry_round, validation_feedback or []))
         # CHANGED: 임원용 요약을 표 중심으로 재구성하고 위협/전략/TRL을 한눈에 보도록 정리.
         lines.append("# SUMMARY")
         lines.append("임원용 요약: 핵심기술의 현재 위치, 주요 기업, 위협 수준, 전략 방향을 한눈에 파악할 수 있도록 정리한다.")
@@ -80,11 +90,13 @@ class ReportWriterAgent(BaseWorkflowAgent):
         lines.extend(self._executive_summary_table(state, highest_threat_by_technology))
 
         lines.append("")
+        lines.append(self._section_divider("분석 배경"))
         lines.append("# 분석 배경")
         lines.append(state.get("user_query", ""))
         lines.append("시장·기술·특허·혁신 신호·TRL·위협 수준·전략 제안을 하나의 흐름으로 통합 해석한다.")
 
         lines.append("")
+        lines.append(self._section_divider("핵심 기술 현황"))
         lines.append("# 핵심 기술 현황")
         if market:
             # CHANGED: 시장 및 기업 분석 섹션을 표 중심으로 재구성.
@@ -142,6 +154,7 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 )
 
         lines.append("")
+        lines.append(self._section_divider("TRL 기반 기술 성숙도 분석"))
         lines.append("# TRL 기반 기술 성숙도 분석")
         if trl:
             # CHANGED: TRL 결과를 표로 먼저 요약하고 근거를 이어서 제공.
@@ -163,6 +176,7 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 )
 
         lines.append("")
+        lines.append(self._section_divider("경쟁 위협 수준 평가"))
         lines.append("# 경쟁 위협 수준 평가")
         if threat:
             # CHANGED: Threat Evaluation 결과를 표 형식으로 정리.
@@ -175,6 +189,7 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 )
 
         lines.append("")
+        lines.append(self._section_divider("전략적 방향 및 대응제안"))
         lines.append("# 전략적 방향 및 대응제안")
         if strategy:
             # CHANGED: Strategy Recommendation을 실행 가능한 액션 중심의 표로 제공.
@@ -195,6 +210,7 @@ class ReportWriterAgent(BaseWorkflowAgent):
                 lines.append("  rationale: %s" % recommendation.rationale)
 
         lines.append("")
+        lines.append(self._section_divider("Evidence & References"))
         lines.append("# REFERENCE")
         lines.append("## Evidence & References")
         references = self._collect_references(state)
@@ -202,6 +218,349 @@ class ReportWriterAgent(BaseWorkflowAgent):
             lines.append("- %s" % reference)
 
         return "\n".join(lines).strip() + "\n"
+
+    # CHANGED: 보고서를 한글 친화적이고 스타일이 적용된 HTML로도 생성.
+    def _build_html_report(
+        self,
+        state: AgentState,
+        markdown: str,
+        metrics: ReportValidationMetrics,
+        issues: List[ValidationIssue],
+    ) -> str:
+        sections = self._split_markdown_sections(markdown)
+        issue_items = "".join(
+            '<li><strong>%s</strong>: %s</li>' % (html.escape(issue.scope), html.escape(issue.message))
+            for issue in issues
+        ) or "<li>특이 이슈 없음</li>"
+        metric_cards = [
+            ("근거율", "%.2f" % metrics.evidence_rate),
+            ("신선도율", "%.2f" % metrics.freshness_rate),
+            ("완결율", "%.2f" % metrics.completeness_rate),
+            ("불확실율", "%.2f" % metrics.uncertainty_rate),
+        ]
+        metric_html = "".join(
+            '<div class="metric-card"><div class="metric-label">%s</div><div class="metric-value">%s</div></div>'
+            % (label, value)
+            for label, value in metric_cards
+        )
+        section_html = "".join(
+            '<section class="report-section"><h2>%s</h2>%s</section>'
+            % (html.escape(title), self._render_markdown_block_to_html(body_lines))
+            for title, body_lines in sections
+        )
+        technologies = ", ".join(state.get("target_technologies", [])[:5]) or "N/A"
+        companies = ", ".join((state.get("selected_companies", []) or state.get("candidate_companies", []))[:5]) or "N/A"
+        template = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Semiconductor Strategy Report</title>
+  <style>
+    :root {
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #d1d5db;
+      --panel: #ffffff;
+      --panel-alt: #f9fafb;
+      --brand: #1f3a68;
+      --brand-soft: #eef3fb;
+      --warn: #9a5b13;
+      --warn-soft: #fff7ed;
+      --bg: #f5f6f8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+    .wrap {
+      width: min(980px, calc(100vw - 40px));
+      margin: 24px auto 40px;
+    }
+    .hero {
+      background: var(--panel);
+      padding: 24px 28px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+    }
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1.2;
+      color: var(--brand);
+    }
+    .subtitle {
+      margin-top: 10px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .badge {
+      background: var(--brand-soft);
+      border: 1px solid #c8d6ea;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--brand);
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0 14px;
+    }
+    .metric-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    .metric-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--brand);
+    }
+    .issue-box {
+      background: var(--warn-soft);
+      border: 1px solid #f3d4a5;
+      border-left: 4px solid #f59e0b;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .issue-box h3 {
+      margin: 0 0 8px 0;
+      color: var(--warn);
+      font-size: 15px;
+    }
+    .report-section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px 22px 16px;
+      margin-top: 16px;
+    }
+    .report-section h2 {
+      margin: 0 0 14px 0;
+      font-size: 22px;
+      color: var(--brand);
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--brand-soft);
+    }
+    .report-section h3 {
+      margin: 18px 0 8px;
+      font-size: 17px;
+      color: #0f4c81;
+    }
+    p { margin: 8px 0 0; }
+    ul { margin: 10px 0 0 18px; padding: 0; }
+    li { margin: 6px 0; }
+    blockquote {
+      margin: 10px 0 0;
+      padding: 10px 14px;
+      background: #f8fafc;
+      border-left: 4px solid #94a3b8;
+      border-radius: 8px;
+      color: var(--muted);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+    thead th {
+      background: var(--brand-soft);
+      color: var(--brand);
+      font-weight: 700;
+      text-align: left;
+      padding: 11px 12px;
+      border-bottom: 1px solid #cfd9ea;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+    }
+    tbody tr:nth-child(even) td {
+      background: var(--panel-alt);
+    }
+    code {
+      background: #eef2f7;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.95em;
+    }
+    hr {
+      border: 0;
+      border-top: 1px solid #e5e7eb;
+      margin: 18px 0 14px;
+    }
+    @media (max-width: 840px) {
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .wrap { width: min(100vw - 24px, 1100px); }
+      .hero { padding: 20px 18px; }
+      h1 { font-size: 28px; }
+      .report-section { padding: 18px 16px 14px; }
+      table { font-size: 13px; display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="eyebrow">Semiconductor Strategy Report</div>
+      <h1>Signals, Readiness, and Strategic Direction</h1>
+      <div class="subtitle">시장·기술·특허·혁신 신호를 안정적으로 읽히는 문서형 레이아웃으로 구성한 전략 보고서</div>
+      <div class="badges">
+        <span class="badge">대상 기술: __TECHNOLOGIES__</span>
+        <span class="badge">주요 기업: __COMPANIES__</span>
+        <span class="badge">통과 기준: __PASSED__ / __TOTAL__</span>
+      </div>
+    </header>
+    <section class="metrics">__METRIC_HTML__</section>
+    <section class="issue-box">
+      <h3>Validation Review</h3>
+      <ul>__ISSUE_ITEMS__</ul>
+    </section>
+    __SECTION_HTML__
+  </div>
+</body>
+</html>
+"""
+        return (
+            template.replace("__TECHNOLOGIES__", html.escape(technologies))
+            .replace("__COMPANIES__", html.escape(companies))
+            .replace("__PASSED__", str(metrics.passed_criteria))
+            .replace("__TOTAL__", str(metrics.total_criteria))
+            .replace("__METRIC_HTML__", metric_html)
+            .replace("__ISSUE_ITEMS__", issue_items)
+            .replace("__SECTION_HTML__", section_html)
+        )
+
+    # CHANGED: 마크다운 텍스트를 단순 HTML 블록으로 변환.
+    def _split_markdown_sections(self, markdown: str) -> List[tuple[str, List[str]]]:
+        sections: List[tuple[str, List[str]]] = []
+        current_title = "Overview"
+        current_lines: List[str] = []
+        for raw_line in markdown.splitlines():
+            if raw_line.startswith("# "):
+                if current_lines:
+                    sections.append((current_title, current_lines))
+                current_title = raw_line[2:].strip()
+                current_lines = []
+                continue
+            current_lines.append(raw_line)
+        if current_lines:
+            sections.append((current_title, current_lines))
+        return sections
+
+    # CHANGED: 보고서 미리보기를 위한 최소 마크다운-HTML 렌더러.
+    def _render_markdown_block_to_html(self, lines: List[str]) -> str:
+        html_lines: List[str] = []
+        in_list = False
+        in_table = False
+        table_buffer: List[str] = []
+        paragraph_buffer: List[str] = []
+
+        def flush_paragraph() -> None:
+            nonlocal paragraph_buffer
+            if paragraph_buffer:
+                html_lines.append("<p>%s</p>" % html.escape(" ".join(paragraph_buffer)))
+                paragraph_buffer = []
+
+        def flush_list() -> None:
+            nonlocal in_list
+            if in_list:
+                html_lines.append("</ul>")
+                in_list = False
+
+        def flush_table() -> None:
+            nonlocal in_table, table_buffer
+            if not in_table or not table_buffer:
+                return
+            rows = [row.strip().strip("|").split("|") for row in table_buffer if row.strip().startswith("|")]
+            rows = [[cell.strip() for cell in row] for row in rows]
+            if len(rows) >= 2:
+                header = rows[0]
+                body = rows[2:] if len(rows) > 2 else []
+                html_lines.append("<table><thead><tr>%s</tr></thead><tbody>" % "".join("<th>%s</th>" % html.escape(cell) for cell in header))
+                for row in body:
+                    html_lines.append("<tr>%s</tr>" % "".join("<td>%s</td>" % html.escape(cell) for cell in row))
+                html_lines.append("</tbody></table>")
+            table_buffer = []
+            in_table = False
+
+        for raw in lines:
+            stripped = raw.strip()
+            if not stripped:
+                flush_paragraph()
+                flush_list()
+                flush_table()
+                continue
+            if stripped.startswith("|"):
+                flush_paragraph()
+                flush_list()
+                in_table = True
+                table_buffer.append(stripped)
+                continue
+            flush_table()
+            if stripped.startswith("### "):
+                flush_paragraph()
+                flush_list()
+                html_lines.append("<h3>%s</h3>" % html.escape(stripped[4:].strip()))
+            elif stripped.startswith("## "):
+                flush_paragraph()
+                flush_list()
+                html_lines.append("<h3>%s</h3>" % html.escape(stripped[3:].strip()))
+            elif stripped.startswith("- "):
+                flush_paragraph()
+                if not in_list:
+                    html_lines.append("<ul>")
+                    in_list = True
+                html_lines.append("<li>%s</li>" % html.escape(stripped[2:].strip()))
+            elif stripped.startswith("> "):
+                flush_paragraph()
+                flush_list()
+                html_lines.append("<blockquote>%s</blockquote>" % html.escape(stripped[2:].strip()))
+            elif stripped.startswith("**") and stripped.endswith("**"):
+                flush_paragraph()
+                flush_list()
+                html_lines.append("<p><strong>%s</strong></p>" % html.escape(stripped.strip("*")))
+            elif stripped == "---":
+                flush_paragraph()
+                flush_list()
+                html_lines.append("<hr />")
+            else:
+                paragraph_buffer.append(stripped)
+
+        flush_paragraph()
+        flush_list()
+        flush_table()
+        return "".join(html_lines)
 
     def _report_validate_node(self, state: AgentState, markdown: str) -> tuple:
         lines = [line for line in markdown.splitlines() if line.strip()]
@@ -292,7 +651,11 @@ class ReportWriterAgent(BaseWorkflowAgent):
             )
         return metrics, issues
 
-    def _formatting_node_pdf_generator(self, markdown: str, output_path: Path) -> Path:
+    def _formatting_node_pdf_generator(self, markdown: str, html_path: Path, output_path: Path) -> Path:
+        # CHANGED: 가능하면 HTML 기반으로 PDF를 만들고, 실패하면 기존 단순 PDF 생성기로 폴백.
+        html_pdf = write_html_pdf(html_path, output_path)
+        if html_pdf:
+            return html_pdf
         return write_simple_pdf(markdown.splitlines(), output_path)
 
     def _collect_references(self, state: AgentState) -> List[str]:
@@ -333,6 +696,36 @@ class ReportWriterAgent(BaseWorkflowAgent):
     def _should_retry_report(self, issues: List[ValidationIssue], retry_round: int) -> bool:
         has_blocking_issue = any(issue.blocking for issue in issues if issue.scope == "Report Validate Node")
         return has_blocking_issue and retry_round < self._MAX_REPORT_RETRIES
+
+    # CHANGED: VS Code markdown preview에서 카드형 커버처럼 보이도록 HTML 블록을 추가.
+    def _report_cover_block(self, state: AgentState, retry_round: int, validation_feedback: List[str]) -> List[str]:
+        technologies = ", ".join(state.get("target_technologies", [])[:5]) or "N/A"
+        companies = ", ".join((state.get("selected_companies", []) or state.get("candidate_companies", []))[:4]) or "N/A"
+        lines = [
+            "---",
+            "# Semiconductor Strategy Report",
+            "## AI Memory & Interconnect Intelligence Brief",
+            "> 시장·기술·특허·혁신 신호를 하나의 흐름으로 통합한 임원용 전략 보고서",
+            "",
+            "- 대상 기술: %s" % technologies,
+            "- 주요 기업: %s" % companies,
+            "- 재출력 라운드: %d" % retry_round,
+            "",
+        ]
+        if validation_feedback:
+            lines.extend(
+                [
+                    "**Quality Feedback**",
+                ]
+            )
+            for feedback in validation_feedback[:4]:
+                lines.append("- %s" % feedback)
+            lines.append("")
+        return lines
+
+    # CHANGED: 각 대섹션 앞에 순수 마크다운 디바이더를 넣어 환경 의존 없이 구획을 강화.
+    def _section_divider(self, title: str) -> str:
+        return "---\n**%s**" % title
 
     # CHANGED: 임원용 요약 표를 생성.
     def _executive_summary_table(self, state: AgentState, highest_threat_by_technology: Dict[str, object]) -> List[str]:

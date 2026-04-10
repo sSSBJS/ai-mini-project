@@ -1,21 +1,26 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
+import re
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Optional, Tuple
 
 
 def write_simple_pdf(lines: Iterable[str], output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    escaped_pages = _paginate(list(lines), max_lines=42)
+    styled_lines = _prepare_lines(list(lines))
+    escaped_pages = _paginate(styled_lines, max_lines=32)
     font_object = "1 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    bold_font_object = "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n"
 
-    objects = [font_object]
+    objects = [font_object, bold_font_object]
     page_object_numbers = []
     content_object_numbers = []
-    next_object_number = 2
+    next_object_number = 3
 
-    for page_lines in escaped_pages:
-        content_stream = _build_content_stream(page_lines)
+    for page_index, page_lines in enumerate(escaped_pages, start=1):
+        content_stream = _build_content_stream(page_lines, page_index, len(escaped_pages))
         content_object_numbers.append(next_object_number)
         objects.append(
             "%d 0 obj\n<< /Length %d >>\nstream\n%s\nendstream\nendobj\n"
@@ -25,7 +30,7 @@ def write_simple_pdf(lines: Iterable[str], output_path: Path) -> Path:
 
         page_object_numbers.append(next_object_number)
         objects.append(
-            "%d 0 obj\n<< /Type /Page /Parent %d 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R >> >> /Contents %d 0 R >>\nendobj\n"
+            "%d 0 obj\n<< /Type /Page /Parent %d 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents %d 0 R >>\nendobj\n"
             % (next_object_number, 0, content_object_numbers[-1])
         )
         next_object_number += 1
@@ -68,6 +73,27 @@ def write_simple_pdf(lines: Iterable[str], output_path: Path) -> Path:
     return output_path
 
 
+def write_html_pdf(html_path: Path, output_path: Path) -> Optional[Path]:
+    chrome = _find_chrome_executable()
+    if not chrome:
+        return None
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        chrome,
+        "--headless=new",
+        "--disable-gpu",
+        "--run-all-compositor-stages-before-draw",
+        "--print-to-pdf=%s" % output_path,
+        "--no-pdf-header-footer",
+        html_path.resolve().as_uri(),
+    ]
+    try:
+        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except Exception:
+        return None
+    return output_path if output_path.exists() else None
+
+
 def _paginate(lines: List[str], max_lines: int) -> List[List[str]]:
     pages = []
     for index in range(0, len(lines), max_lines):
@@ -75,12 +101,116 @@ def _paginate(lines: List[str], max_lines: int) -> List[List[str]]:
     return pages or [[]]
 
 
-def _build_content_stream(lines: List[str]) -> str:
+def _build_content_stream(lines: List[Tuple[str, str]], page_index: int, page_count: int) -> str:
     y_position = 760
-    stream_lines = ["BT", "/F1 11 Tf"]
-    for line in lines:
-        escaped = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-        stream_lines.append("1 0 0 1 50 %d Tm (%s) Tj" % (y_position, escaped[:110]))
-        y_position -= 16
+    stream_lines = []
+    # Soft page background header band
+    stream_lines.append("0.95 0.97 1 rg")
+    stream_lines.append("40 730 532 38 re f")
+    stream_lines.append("0.11 0.24 0.55 RG")
+    stream_lines.append("40 730 532 38 re S")
+    # Header title
+    stream_lines.append("BT")
+    stream_lines.append("/F2 15 Tf")
+    stream_lines.append("1 1 1 rg")
+    stream_lines.append("1 0 0 1 52 746 Tm (Semiconductor Strategy Report) Tj")
+    stream_lines.append("ET")
+    y_position = 705
+
+    for raw_line, line_type in lines:
+        line = _strip_html(raw_line)
+        if not line.strip():
+            y_position -= 10
+            continue
+        escaped = _escape_pdf_text(line)
+        font, size, color, indent = _style_for_line(line, line_type)
+        stream_lines.append("BT")
+        stream_lines.append("/%s %s Tf" % (font, size))
+        stream_lines.append("%s rg" % color)
+        stream_lines.append("1 0 0 1 %d %d Tm (%s) Tj" % (indent, y_position, escaped[:118]))
+        stream_lines.append("ET")
+        if line_type == "h1":
+            y_position -= 24
+        elif line_type == "h2":
+            y_position -= 20
+        elif line_type == "h3":
+            y_position -= 18
+        else:
+            y_position -= 15
+
+    # Footer
+    stream_lines.append("0.75 0.80 0.90 RG")
+    stream_lines.append("40 32 532 0.8 re S")
+    stream_lines.append("BT")
+    stream_lines.append("/F1 9 Tf")
+    stream_lines.append("0.38 0.44 0.54 rg")
+    stream_lines.append("1 0 0 1 50 18 Tm (Page %d / %d) Tj" % (page_index, page_count))
     stream_lines.append("ET")
     return "\n".join(stream_lines)
+
+
+def _prepare_lines(lines: List[str]) -> List[Tuple[str, str]]:
+    prepared = []
+    for raw in lines:
+        line_type = _classify_line(raw)
+        prepared.append((raw, line_type))
+    return prepared
+
+
+def _classify_line(line: str) -> str:
+    stripped = line.strip()
+    if not stripped:
+        return "blank"
+    if stripped.startswith("# "):
+        return "h1"
+    if stripped.startswith("## "):
+        return "h2"
+    if stripped.startswith("### "):
+        return "h3"
+    if stripped.startswith("|"):
+        return "table"
+    if stripped.startswith("- "):
+        return "bullet"
+    if stripped.startswith("<div") or stripped.startswith("</div"):
+        return "html"
+    return "body"
+
+
+def _style_for_line(line: str, line_type: str) -> Tuple[str, int, str, int]:
+    if line_type == "h1":
+        return ("F2", 18, "0.07 0.16 0.36", 46)
+    if line_type == "h2":
+        return ("F2", 14, "0.10 0.32 0.74", 48)
+    if line_type == "h3":
+        return ("F2", 12, "0.15 0.23 0.35", 54)
+    if line_type == "table":
+        return ("F1", 9, "0.19 0.24 0.31", 52)
+    if line_type == "bullet":
+        return ("F1", 10, "0.17 0.19 0.24", 58)
+    if line_type == "html":
+        return ("F1", 10, "0.20 0.26 0.34", 52)
+    return ("F1", 10, "0.17 0.19 0.24", 50)
+
+
+def _strip_html(text: str) -> str:
+    text = re.sub(r"<[^>]+>", "", text)
+    text = text.replace("&nbsp;", " ")
+    return " ".join(text.split())
+
+
+def _escape_pdf_text(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _find_chrome_executable() -> Optional[str]:
+    candidates = [
+        shutil.which("google-chrome"),
+        shutil.which("chromium"),
+        shutil.which("chromium-browser"),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return candidate
+    return None
