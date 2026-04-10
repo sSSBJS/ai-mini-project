@@ -139,21 +139,15 @@ def build_stage_snapshot(stage_name: str, state: AgentState) -> Dict[str, object
     if stage_name == "trl_assessment":
         trl = state.get("trl_assessment")
         return {
-            "shared_standards": state.get("shared_standards", {}).get("trl_evidence_rules", {}),
             "entries": [
                 {
                     "company": entry.company,
                     "technology": entry.technology,
-                    "trl_level": entry.trl_level,
-                    "applied_rule_range": entry.applied_rule_range,
-                    "confidence": entry.confidence,
-                    "estimated": entry.estimated,
-                    "reason": entry.reason,
-                    "supporting_evidence_count": len(entry.supporting_evidence),
+                    "trl": entry.trl,
+                    "summary": entry.summary,
                 }
                 for entry in (trl.entries if trl else [])
             ],
-            "patent_signals": build_stage_snapshot("patent_innovation_signal", state).get("entries", []),
         }
     if stage_name == "threat_evaluation":
         threat = state.get("threat_evaluation")
