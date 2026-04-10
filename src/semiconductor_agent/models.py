@@ -80,20 +80,25 @@ class PatentInnovationSignalResult(BaseModel):
     search_plan: BalancedSearchPlan
 
 
+class TRLLLMAssessment(BaseModel):
+    """LLM structured output for TRL assessment"""
+    trl_level: int = Field(ge=1, le=9)
+    applied_rule_range: str
+    confidence: str
+    estimated: bool = False
+    reason: str
+    key_evidence_ids: List[str] = Field(default_factory=list)
+
+
 class TRLAssessmentEntry(BaseModel):
     technology: str
     company: str
-    trl_level: int
-    reason: str
-    applied_rule_range: str
-    supporting_evidence: List[EvidenceItem]
-    confidence: str
-    estimated: bool = False
+    trl: int
+    summary: str
 
 
 class TRLAssessmentResult(BaseModel):
     entries: List[TRLAssessmentEntry]
-    shared_standards_used: Dict[str, object]
 
 
 class ThreatEntry(BaseModel):

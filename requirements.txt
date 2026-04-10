@@ -1,0 +1,13 @@
+# Core workflow / orchestration
+langgraph>=0.2.0
+langchain>=0.3.27
+langchain-openai>=0.3.0
+
+# Data models / document parsing
+pydantic>=2.9.0
+pypdf>=5.0.0
+cryptography>=3.1
+
+# Optional:
+# sentence-transformers improves dense retrieval quality in RAG,
+# but the current code can still run tests without it because it has a fallback path.
