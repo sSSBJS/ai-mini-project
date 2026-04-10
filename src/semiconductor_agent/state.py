@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, TypedDict
+from typing import Annotated, Dict, List, Optional, TypedDict
 
 from semiconductor_agent.models import (
     MarketResearchResult,
@@ -21,6 +21,17 @@ from semiconductor_agent.shared_standards import (
 )
 
 
+def merge_validation_issues(
+    current: List[ValidationIssue],
+    update: List[ValidationIssue],
+) -> List[ValidationIssue]:
+    if not current:
+        return list(update)
+    if len(update) >= len(current) and update[: len(current)] == current:
+        return list(update)
+    return list(current) + list(update)
+
+
 class AgentState(TypedDict, total=False):
     user_query: str
     output_dir: str
@@ -37,7 +48,7 @@ class AgentState(TypedDict, total=False):
     next_step: Optional[str]
     last_completed_step: Optional[str]
     supervisor_log: List[SupervisorDecision]
-    validation_issues: List[ValidationIssue]
+    validation_issues: Annotated[List[ValidationIssue], merge_validation_issues]
     market_research: Optional[MarketResearchResult]
     technique_research: Optional[TechniqueResearchResult]
     patent_innovation_signal: Optional[PatentInnovationSignalResult]

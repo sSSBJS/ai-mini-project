@@ -2,15 +2,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from semiconductor_agent.agents import (
-    ReportWriterAgent,
-    StrategyPlannerAgent,
-    TechniqueResearchCollectorAgent,
-)
-from semiconductor_agent.graph import build_agent_graph
+from semiconductor_agent.agent_nodes.report import ReportWriterAgent
+from semiconductor_agent.agent_nodes.strategy import StrategyPlannerAgent
+from semiconductor_agent.agent_nodes.technique import TechniqueResearchCollectorAgent
 from semiconductor_agent.runtime import RuntimeConfig
 from semiconductor_agent.shared_standards import DEFAULT_TECHNOLOGIES, SHARED_STANDARDS
 from semiconductor_agent.state import create_initial_state
+from semiconductor_agent.workflow.builder import build_agent_graph
 
 
 class PdfArchitectureTests(unittest.TestCase):
@@ -28,6 +26,7 @@ class PdfArchitectureTests(unittest.TestCase):
         langgraph_graph = graph.get_graph()
         expected_nodes = {
             "__start__",
+            "research_sync",
             "supervisor",
             "market_research",
             "technique_research",
@@ -42,8 +41,6 @@ class PdfArchitectureTests(unittest.TestCase):
 
         edges = {(edge.source, edge.target) for edge in langgraph_graph.edges}
         for worker in [
-            "market_research",
-            "technique_research",
             "patent_innovation_signal",
             "trl_assessment",
             "threat_evaluation",
@@ -52,6 +49,11 @@ class PdfArchitectureTests(unittest.TestCase):
         ]:
             self.assertIn(("supervisor", worker), edges)
             self.assertIn((worker, "supervisor"), edges)
+        self.assertIn(("__start__", "market_research"), edges)
+        self.assertIn(("__start__", "technique_research"), edges)
+        self.assertIn(("market_research", "research_sync"), edges)
+        self.assertIn(("technique_research", "research_sync"), edges)
+        self.assertIn(("research_sync", "supervisor"), edges)
 
     def test_state_and_standards_follow_pdf_constraints(self):
         state = create_initial_state("test", output_dir=self.output_dir)
@@ -80,7 +82,7 @@ class PdfArchitectureTests(unittest.TestCase):
         self.assertTrue(Path(result["report_artifact"].markdown_path).exists())
         self.assertTrue(Path(result["report_artifact"].pdf_path).exists())
         self.assertGreaterEqual(result["report_artifact"].metrics.passed_criteria, 3)
-        self.assertGreaterEqual(len(result["supervisor_log"]), 8)
+        self.assertGreaterEqual(len(result["supervisor_log"]), 6)
 
 
 if __name__ == "__main__":

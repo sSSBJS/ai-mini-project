@@ -54,7 +54,6 @@ class TechniqueResearchCollectorAgent(BaseWorkflowAgent):
                 search_plan=search_plan,
             ),
             "validation_issues": self.append_issues(state, validation_issues),
-            "last_completed_step": self.agent_key,
         }
 
     def _compose_technology_summary(self, technology: str, evidence: Sequence[EvidenceItem]) -> str:

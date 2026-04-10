@@ -66,5 +66,4 @@ class MarketResearchCollectorAgent(BaseWorkflowAgent):
             "selected_companies": companies,
             "search_count": self._increment_search_count(state, 1 if web_results else 0),
             "validation_issues": self.append_issues(state, issues),
-            "last_completed_step": self.agent_key,
         }
