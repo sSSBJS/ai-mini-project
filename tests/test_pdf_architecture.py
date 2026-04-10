@@ -49,8 +49,7 @@ class PdfArchitectureTests(unittest.TestCase):
         ]:
             self.assertIn(("supervisor", worker), edges)
             self.assertIn((worker, "supervisor"), edges)
-        self.assertIn(("__start__", "market_research"), edges)
-        self.assertIn(("__start__", "technique_research"), edges)
+        self.assertIn(("__start__", "supervisor"), edges)
         self.assertIn(("market_research", "research_sync"), edges)
         self.assertIn(("technique_research", "research_sync"), edges)
         self.assertIn(("research_sync", "supervisor"), edges)

@@ -23,8 +23,7 @@ def build_agent_graph(runtime: RuntimeConfig):
         builder.add_node(node_name, node_callable)
     builder.add_node("research_sync", _research_sync)
 
-    builder.add_edge(START, "market_research")
-    builder.add_edge(START, "technique_research")
+    builder.add_edge(START, "supervisor")
     builder.add_edge("market_research", "research_sync")
     builder.add_edge("technique_research", "research_sync")
     builder.add_edge("research_sync", "supervisor")

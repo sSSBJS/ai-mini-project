@@ -25,12 +25,12 @@ class SupervisorAgent(BaseWorkflowAgent):
         next_step = None
         reason = ""
 
-        if (
-            state.get("market_research") is None
-            or state.get("technique_research") is None
-        ):
-            next_step = "end"
-            reason = "초기 병렬 조사 결과가 아직 모두 합류하지 않아 supervisor 단계에서 중단"
+        if state.get("market_research") is None:
+            next_step = "market_research"
+            reason = "초기 병렬 조사 시작: 시장 조사부터 실행"
+        elif state.get("technique_research") is None:
+            next_step = "technique_research"
+            reason = "초기 병렬 조사 진행: 기술 조사 실행"
         elif not approvals.get("coverage_review"):
             coverage_issues = self._merge_issues(
                 self._check_market_research(state),
