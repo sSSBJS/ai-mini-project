@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import threading
 from collections import Counter, defaultdict
 from datetime import date
 from pathlib import Path
@@ -17,6 +18,10 @@ try:
     from sentence_transformers import SentenceTransformer
 except Exception:  # pragma: no cover - optional runtime dependency
     SentenceTransformer = None
+
+
+_MODEL_CACHE = {}
+_MODEL_CACHE_LOCK = threading.Lock()
 
 
 class ChunkRecord:
@@ -89,7 +94,7 @@ class E5CompatibleDenseRetriever:
             try:
                 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
                 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-                self.model = SentenceTransformer(model_name, device=device)
+                self.model = _load_sentence_transformer(model_name, device)
                 self.chunk_vectors = self.model.encode(
                     [self._query_instruction(chunk.text, is_query=False) for chunk in self.chunks],
                     normalize_embeddings=True,
@@ -135,19 +140,30 @@ class E5CompatibleDenseRetriever:
 
 
 class HybridRetriever:
-    def __init__(self, chunks: Sequence[ChunkRecord], model_name: str, device: str = "cpu"):
+    def __init__(
+        self,
+        chunks: Sequence[ChunkRecord],
+        model_name: str,
+        device: str = "cpu",
+        enable_dense: bool = False,
+    ):
         self.chunks = list(chunks)
-        self.dense = E5CompatibleDenseRetriever(chunks, model_name=model_name, device=device)
+        self.dense = None
+        if enable_dense:
+            self.dense = E5CompatibleDenseRetriever(chunks, model_name=model_name, device=device)
         self.bm25 = BM25Retriever(chunks)
 
     def search(self, query: str, top_k: int = 4) -> List[EvidenceItem]:
-        dense_results = self.dense.search(query, top_k=top_k * 2)
         sparse_results = self.bm25.search(query, top_k=top_k * 2)
         combined = {}
-        for chunk, score in _normalize_scores(dense_results):
-            combined.setdefault(chunk.chunk_id, [chunk, 0.0])[1] += score * 0.5
+        sparse_weight = 1.0
+        if self.dense is not None:
+            dense_results = self.dense.search(query, top_k=top_k * 2)
+            for chunk, score in _normalize_scores(dense_results):
+                combined.setdefault(chunk.chunk_id, [chunk, 0.0])[1] += score * 0.5
+            sparse_weight = 0.5
         for chunk, score in _normalize_scores(sparse_results):
-            combined.setdefault(chunk.chunk_id, [chunk, 0.0])[1] += score * 0.5
+            combined.setdefault(chunk.chunk_id, [chunk, 0.0])[1] += score * sparse_weight
 
         ranked = sorted(combined.values(), key=lambda item: item[1], reverse=True)[:top_k]
         evidence = []
@@ -171,15 +187,24 @@ class CorpusRegistry:
     def __init__(self, runtime: RuntimeConfig):
         self.runtime = runtime
         self._retrievers = {}
+        self._lock = threading.Lock()
 
     def get_retriever(self, corpus_name: str) -> HybridRetriever:
-        if corpus_name not in self._retrievers:
+        retriever = self._retrievers.get(corpus_name)
+        if retriever is not None:
+            return retriever
+
+        with self._lock:
+            retriever = self._retrievers.get(corpus_name)
+            if retriever is not None:
+                return retriever
             base_dir = self.runtime.resolve_reference_dir(corpus_name)
             chunks = load_pdf_chunks(base_dir)
             self._retrievers[corpus_name] = HybridRetriever(
                 chunks,
                 model_name=self.runtime.embedding_model_name,
                 device=self.runtime.embedding_device,
+                enable_dense=self.runtime.enable_dense_rag,
             )
         return self._retrievers[corpus_name]
 
@@ -258,6 +283,16 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> Iterable[str]:
     while start < len(text):
         yield text[start : start + chunk_size]
         start += step
+
+
+def _load_sentence_transformer(model_name: str, device: str):
+    key = (model_name, device)
+    with _MODEL_CACHE_LOCK:
+        model = _MODEL_CACHE.get(key)
+        if model is None:
+            model = SentenceTransformer(model_name, device=device)
+            _MODEL_CACHE[key] = model
+        return model
 
 
 def _normalize_whitespace(text: str) -> str:

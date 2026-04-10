@@ -11,6 +11,7 @@ class RuntimeConfig:
     project_root: Path
     output_dir: Path
     enable_web_search: bool = False
+    enable_dense_rag: bool = False
     openai_model: str = "gpt-4o-mini"
     use_llm_planning: bool = False
     use_llm_supervisor_review: bool = True
@@ -29,6 +30,7 @@ class RuntimeConfig:
             project_root=project_root,
             output_dir=output_dir,
             enable_web_search=_get_bool_env("ENABLE_WEB_SEARCH", False),
+            enable_dense_rag=_get_bool_env("ENABLE_DENSE_RAG", False),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             use_llm_planning=_get_bool_env("USE_LLM_PLANNING", False),
             use_llm_supervisor_review=_get_bool_env("USE_LLM_SUPERVISOR_REVIEW", True),
