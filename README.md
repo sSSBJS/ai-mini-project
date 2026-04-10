@@ -46,36 +46,36 @@ Semiconductor Strategy Workflow
 
 ```mermaid
 flowchart TD
-    START["START"]
-    MR["market_research"]
-    TR["technique_research"]
-    RS["research_sync"]
-    SV["supervisor"]
-    PI["patent_innovation_signal"]
-    TA["trl_assessment"]
-    TH["threat_evaluation"]
-    SP["strategy_planner"]
-    RW["report_writer"]
-    END["END"]
+    n_start["START"]
+    n_market["market_research"]
+    n_tech["technique_research"]
+    n_sync["research_sync"]
+    n_supervisor["supervisor"]
+    n_patent["patent_innovation_signal"]
+    n_trl["trl_assessment"]
+    n_threat["threat_evaluation"]
+    n_strategy["strategy_planner"]
+    n_report["report_writer"]
+    n_end["END"]
 
-    START --> MR
-    START --> TR
-    MR --> RS
-    TR --> RS
-    RS --> SV
+    n_start --> n_market
+    n_start --> n_tech
+    n_market --> n_sync
+    n_tech --> n_sync
+    n_sync --> n_supervisor
 
-    SV --> PI
-    SV --> TA
-    SV --> TH
-    SV --> SP
-    SV --> RW
-    SV --> END
+    n_supervisor --> n_patent
+    n_supervisor --> n_trl
+    n_supervisor --> n_threat
+    n_supervisor --> n_strategy
+    n_supervisor --> n_report
+    n_supervisor --> n_end
 
-    PI --> SV
-    TA --> SV
-    TH --> SV
-    SP --> SV
-    RW --> SV
+    n_patent --> n_supervisor
+    n_trl --> n_supervisor
+    n_threat --> n_supervisor
+    n_strategy --> n_supervisor
+    n_report --> n_supervisor
 ```
 
 ## Directory Structure
