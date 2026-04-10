@@ -25,7 +25,10 @@ class SupervisorAgent(BaseWorkflowAgent):
         next_step = None
         reason = ""
 
-        if state.get("market_research") is None or state.get("technique_research") is None:
+        if (
+            state.get("market_research") is None
+            or state.get("technique_research") is None
+        ):
             next_step = "end"
             reason = "초기 병렬 조사 결과가 아직 모두 합류하지 않아 supervisor 단계에서 중단"
         elif not approvals.get("coverage_review"):
@@ -74,6 +77,9 @@ class SupervisorAgent(BaseWorkflowAgent):
                 allowed_retry_targets=("patent_innovation_signal", "none"),
             )
             reviewed_issues = self._merge_issues(patent_issues, *(review.issues,) if review else ())
+            # CHANGED: 생태계·사업화 신호가 충분한 경우에는 특허/논문 축의 제한적 문구만으로 blocking 재실행하지 않도록 완화.
+            if self._has_usable_patent_signal(state):
+                reviewed_issues = self._downgrade_patent_review_blockers(reviewed_issues)
             current_issues.extend(reviewed_issues)
             blocking = [issue for issue in reviewed_issues if issue.blocking]
             retry_target = self._select_retry_target(
@@ -382,7 +388,96 @@ class SupervisorAgent(BaseWorkflowAgent):
                         blocking=False,
                     )
                 )
+                continue
+            evidence_count = len(entry.indirect_evidence)
+            if evidence_count == 0:
+                issues.append(
+                    ValidationIssue(
+                        scope="Supervisor",
+                        message="%s / %s 간접 지표 근거가 비어 있습니다." % (entry.company, entry.technology),
+                        severity="high",
+                        blocking=True,
+                    )
+                )
+                continue
+            patent_activity_summary = getattr(entry, "patent_activity_summary", "") or ""
+            patent_paper_link_summary = getattr(entry, "patent_paper_link_summary", "") or ""
+            ecosystem_signal_summary = getattr(entry, "ecosystem_signal_summary", "") or ""
+            usable_signal_count = sum(
+                1
+                for summary in (
+                    patent_activity_summary,
+                    patent_paper_link_summary,
+                    ecosystem_signal_summary,
+                )
+                if summary and "제한적" not in summary
+            )
+            if usable_signal_count == 0 and evidence_count < 3:
+                issues.append(
+                    ValidationIssue(
+                        scope="Supervisor",
+                        message="%s / %s 간접 지표가 있으나 TRL 후속 판정에 활용 가능한 해석이 부족합니다."
+                        % (entry.company, entry.technology),
+                        severity="medium",
+                        blocking=False,
+                    )
+                )
         return issues
+
+    # CHANGED: 간접근거 단계에서 usable한 신호가 최소 1개 이상 있는지 판정.
+    def _has_usable_patent_signal(self, state: AgentState) -> bool:
+        patent = state.get("patent_innovation_signal")
+        if not patent:
+            return False
+        for entry in patent.entries:
+            evidence_count = len(entry.indirect_evidence)
+            patent_activity_summary = getattr(entry, "patent_activity_summary", "") or ""
+            patent_paper_link_summary = getattr(entry, "patent_paper_link_summary", "") or ""
+            ecosystem_signal_summary = getattr(entry, "ecosystem_signal_summary", "") or ""
+            usable_signal_count = sum(
+                1
+                for summary in (
+                    patent_activity_summary,
+                    patent_paper_link_summary,
+                    ecosystem_signal_summary,
+                )
+                if summary and "제한적" not in summary
+            )
+            if usable_signal_count >= 1 and evidence_count >= 3:
+                return True
+        return False
+
+    # CHANGED: 특허/논문 축이 제한적이더라도 생태계 신호가 충분하면 blocking을 non-blocking으로 낮춘다.
+    def _downgrade_patent_review_blockers(self, issues: List[ValidationIssue]) -> List[ValidationIssue]:
+        softened = []
+        for issue in issues:
+            message = issue.message or ""
+            scope = issue.scope or ""
+            if scope in {
+                "Supervisor",
+                "patent_activity_summary",
+                "patent_paper_link_summary",
+                "patent_activity",
+                "patent_paper_link",
+                "confidence",
+            } and (
+                "특허 activity" in message
+                or "특허-논문 연결" in message
+                or "직접 근거가 부족" in message
+                or "신뢰도가 낮아" in message
+                or "신뢰도가 낮고" in message
+            ):
+                softened.append(
+                    ValidationIssue(
+                        scope=issue.scope,
+                        message=issue.message,
+                        severity=issue.severity,
+                        blocking=False,
+                    )
+                )
+            else:
+                softened.append(issue)
+        return softened
 
     def _check_trl_quality(self, state: AgentState) -> List[ValidationIssue]:
         issues = []

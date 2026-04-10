@@ -26,7 +26,8 @@ SUCCESS_CRITERIA = {
     "patent_innovation_signal": [
         "선정된 기업-기술 조합마다 간접 신호 엔트리가 존재한다.",
         "직접 근거 부족 시 [추정] 성격과 confidence가 명확히 드러난다.",
-        "특허, 투자, 파트너십, 상용화 신호가 후속 TRL 판정에 쓸 수 있는 수준으로 정리된다.",
+        "특허 activity, 특허-논문 연결, 생태계·사업화 신호 중 최소 1개 이상이 후속 TRL 판정에 활용 가능한 수준으로 정리된다.",
+        "근거가 제한적인 축은 '제한적' 또는 [추정] 형태로 한계가 명시된다.",
     ],
     "trl_assessment": [
         "기업-기술 조합마다 TRL 엔트리가 존재한다.",
@@ -130,6 +131,9 @@ def build_stage_snapshot(stage_name: str, state: AgentState) -> Dict[str, object
                     "confidence": entry.confidence,
                     "estimated": entry.estimated,
                     "signal_summary": entry.signal_summary,
+                    "patent_activity_summary": getattr(entry, "patent_activity_summary", ""),
+                    "patent_paper_link_summary": getattr(entry, "patent_paper_link_summary", ""),
+                    "ecosystem_signal_summary": getattr(entry, "ecosystem_signal_summary", ""),
                     "evidence_count": len(entry.indirect_evidence),
                     "evidence_sources": _collect_source_types(entry.indirect_evidence),
                 }
