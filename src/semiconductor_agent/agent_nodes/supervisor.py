@@ -43,7 +43,7 @@ class SupervisorAgent(BaseWorkflowAgent):
             current_issues.extend(review_issues)
             retry_target = self._select_retry_target(
                 review=review,
-                fallback_target="technique_research",
+                fallback_target=self._choose_initial_research_retry_target(review_issues),
                 allowed_targets=("market_research", "technique_research"),
             )
             blocking = [issue for issue in review_issues if issue.blocking]
@@ -271,6 +271,24 @@ class SupervisorAgent(BaseWorkflowAgent):
         if review and review.summary:
             return "%s / LLM review: %s" % (base_reason, review.summary)
         return base_reason
+
+    def _choose_initial_research_retry_target(self, issues: Sequence[ValidationIssue]) -> str:
+        market_score = 0
+        technique_score = 0
+        for issue in issues:
+            scope = (issue.scope or "").lower()
+            message = (issue.message or "").lower()
+            if "evidence validation" in scope or "기술" in issue.message:
+                technique_score += 2
+            if "search verification" in scope or "search_balance" in scope:
+                market_score += 1
+            if "시장" in issue.message or "기업 자료" in issue.message:
+                market_score += 2
+            if "논문" in issue.message or "표준" in issue.message:
+                technique_score += 2
+        if market_score > technique_score:
+            return "market_research"
+        return "technique_research"
 
     def _merge_issues(self, *issue_groups: Sequence[ValidationIssue]) -> List[ValidationIssue]:
         merged = []

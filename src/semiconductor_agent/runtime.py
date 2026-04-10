@@ -17,6 +17,7 @@ class RuntimeConfig:
     research_reference_dir: Optional[Path] = None
     trl_reference_dir: Optional[Path] = None
     embedding_model_name: str = "intfloat/multilingual-e5-large-instruct"
+    embedding_device: str = "cpu"
 
     @classmethod
     def from_env(cls, project_root: Path) -> "RuntimeConfig":
@@ -34,6 +35,7 @@ class RuntimeConfig:
             research_reference_dir=Path(research_dir).expanduser() if research_dir else None,
             trl_reference_dir=Path(trl_dir).expanduser() if trl_dir else None,
             embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME", "intfloat/multilingual-e5-large-instruct"),
+            embedding_device=os.getenv("EMBEDDING_DEVICE", "cpu"),
         )
 
     def resolve_reference_dir(self, corpus_name: str) -> Path:
