@@ -7,13 +7,13 @@ Semiconductor Strategy Workflow
 
 ## Overview
 - Objective : 반도체 기술(HBM4, PIM, CXL 등)에 대해 시장성, 기술 성숙도, 경쟁 위협, 실행 전략을 통합 분석하는 자동화 워크플로우를 구축
-- Method : LangGraph 기반 멀티 에이전트 구조로 병렬 조사, supervisor 기반 라우팅, RAG 검색, LLM 기반 판단, 규칙 기반 fallback을 결합
+- Method : LangGraph 기반 멀티 에이전트 구조로 supervisor 시작 라우팅, 초기 조사(시장/기술), RAG 검색, LLM 기반 판단, 규칙 기반 fallback을 결합
 - Tools : Internal PDF RAG(BM25 + optional dense retrieval), WebSearchClient(SerpAPI / OpenAlex)
 
 ## Features
 - PDF 자료 기반 정보 추출
 - 웹 조사와 내부 RAG를 결합한 증거 수집
-- 시장 조사와 기술 조사의 병렬 수행
+- Supervisor가 초기 시장/기술 조사 단계를 라우팅
 - 특허 및 혁신 신호 기반 간접 경쟁력 분석
 - TRL(Technology Readiness Level) 자동 판정
 - 경쟁 위협 수준 평가 및 기술별 전략 추천
@@ -69,8 +69,9 @@ flowchart TD
     n_report["report_writer"]
     n_end["END"]
 
-    n_start --> n_market
-    n_start --> n_tech
+    n_start --> n_supervisor
+    n_supervisor --> n_market
+    n_supervisor --> n_tech
     n_market --> n_sync
     n_tech --> n_sync
     n_sync --> n_supervisor
